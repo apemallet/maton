@@ -1,0 +1,5 @@
+- visuals should be neon-wireframe style, dark mode; simplified, graph-like walkers
+- walker should know its altitude so that when we do low grav it can possibly know what's up
+- visuals based on decoding "dreams" should accumulate LIDAR hit predictions into a predicted ("painted") obstacle course render
+- might be interesting to have a large obstacle curriculum with discrete levels and see if dreamer can skip levels
+- spider walker, pogo walker, "car" walker (triangle legs)
