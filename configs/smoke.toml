@@ -1,0 +1,30 @@
+seed = 0
+
+[env]
+frame_skip = 1
+episode_length = 16
+
+[terrain]
+slots = 1
+block_frequency = 0.2
+gap_frequency = 0.1
+
+[ppo]
+updates = 1
+num_envs = 1
+rollout_steps = 4
+epochs = 1
+minibatch_size = 4
+hidden_size = 8
+
+[dreamer]
+steps = 16
+batch_size = 1
+batch_length = 4
+train_every = 8
+hidden = 16
+deter = 16
+stoch = 2
+classes = 2
+imag_length = 2
+checkpoint_every = 16

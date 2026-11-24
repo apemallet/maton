@@ -1,2 +1,4 @@
 def main():
-    print("hi")
+    from maton.cli import main as cli_main
+
+    cli_main()

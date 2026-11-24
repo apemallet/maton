@@ -6,12 +6,16 @@ readme = "README.md"
 authors = [{ name = "Simon Walker", email = "simon@simonwalker.tech" }]
 requires-python = ">=3.13"
 dependencies = [
+  "dreamer",
   "einx>=0.4.3",
   "equinox>=0.13.8",
+  "imageio>=2.38.2",
+  "imageio-ffmpeg>=0.8.1",
   "jax>=0.12.1",
   "jax[cuda]>=0.12.0.1 ; sys_platform == 'linux'",
   "jaxtyping>=0.3.11",
   "matplotlib>=3.11.2",
+  "mujoco-mjx>=4.0.1",
   "numpy>=2.5.5",
   "optax>=0.2.9",
   "optuna>=5.1.0",
@@ -38,3 +42,13 @@ dev = ["basedpyright>=1.40.2"]
 
 [tool.basedpyright]
 typeCheckingMode = "basic"
+
+[tool.uv.sources]
+dreamer = { git = "https://github.com/danijar/dreamerv3.git", rev = "e01491fad6434b2245a3b8ca201dd7faedcc458c" }
+
+# Upstream pins obsolete CUDA/Atari dependencies for its benchmark suite.
+# This project uses its JAX agent and Embodied core with our own MJX environment.
+[[tool.uv.dependency-metadata]]
+name = "dreamer"
+version = "3.3.1"
+requires-dist = ["chex", "einops", "elements>=3.19.1", "ninjax>=3.5.1", "portal>=3.5.0", "ruamel-yaml", "cloudpickle", "jax", "numpy", "optax"]

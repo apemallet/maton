@@ -1,0 +1,63 @@
+"""Fixed-topology, randomly sampled block and trench courses."""
+from dataclasses import dataclass
+from typing import cast
+
+import einx
+import jax
+import jax.numpy as jnp
+from jaxtyping import Array
+
+
+@dataclass(frozen=True)
+class TerrainConfig:
+    slots: int = 6
+    spacing: float = 1.5
+    start_length: float = 2.0
+    block_frequency: float = 0.2
+    block_height: float = 0.12
+    block_width: float = 0.35
+    gap_frequency: float = 0.1
+    gap_height: float = 0.15
+    gap_width: float = 0.3
+
+    def __post_init__(self):
+        if self.slots < 1 or self.spacing <= 0 or self.start_length < 1:
+            raise ValueError("Course needs slots, positive spacing, and at least 1m clear start")
+        if not (0 <= self.block_frequency <= 1 and 0 <= self.gap_frequency <= 1
+                and self.block_frequency + self.gap_frequency <= 1):
+            raise ValueError("Block and gap frequencies must be probabilities with sum <= 1")
+        if not (0 < self.block_width < self.spacing and 0 < self.gap_width < self.spacing):
+            raise ValueError("Obstacle widths must lie strictly inside slot spacing")
+        if self.block_height < 0 or not 0 <= self.gap_height < 1:
+            raise ValueError("Heights must be nonnegative and gap depth < 1m")
+
+    @property
+    def length(self) -> float:
+        return self.start_length + self.slots * self.spacing
+
+
+def sample_terrain(key: Array, config: TerrainConfig) -> Array:
+    """Return [slot, (signed height, width)]; a negative height is a trench."""
+    kind_key, size_key = jax.random.split(key)
+    kind = jax.random.uniform(kind_key, (config.slots,))
+    scale = jax.random.uniform(size_key, (config.slots, 2), minval=0.5, maxval=1.0)
+    block = kind < config.block_frequency
+    gap = (kind >= config.block_frequency) & (kind < config.block_frequency + config.gap_frequency)
+    height = jnp.where(block, config.block_height, jnp.where(gap, -config.gap_height, 0.0))
+    width = jnp.where(block, config.block_width, config.gap_width)
+    return jnp.stack((height * scale[:, 0], width * scale[:, 1]), axis=-1)
+
+
+def rectangles(terrain: Array, config: TerrainConfig) -> Array:
+    """Return [rectangle, (left, right, top)] for collision and lidar alike."""
+    center = config.start_length + (jnp.arange(config.slots) + 0.5) * config.spacing
+    left = center - terrain[:, 1] / 2
+    right = center + terrain[:, 1] / 2
+    start = center - config.spacing / 2
+    end = center + config.spacing / 2
+    zero = jnp.zeros(config.slots)
+    tiles = jnp.stack((jnp.stack((start, left, zero), -1),
+                       jnp.stack((left, right, terrain[:, 0]), -1),
+                       jnp.stack((right, end, zero), -1)), axis=1)
+    flat = cast(Array, einx.id("slot part coord -> (slot part) coord", tiles))  # pyright: ignore[reportPrivateImportUsage]
+    return jnp.concatenate((jnp.array([[-2.0, config.start_length, 0.0]]), flat))
