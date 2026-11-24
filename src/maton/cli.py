@@ -22,6 +22,7 @@ def main(argv: list[str] | None = None) -> None:
     rollout.add_argument("--output", type=Path, required=True)
     rollout.add_argument("--seed", type=int, default=1000)
     rollout.add_argument("--episodes", type=int, default=1)
+    rollout.add_argument("--level", type=int, help="Curriculum level (1-based); default: checkpoint's level")
     render = commands.add_parser("render", help="Render a saved episode to MP4")
     render.add_argument("episode", type=Path)
     render.add_argument("--output", type=Path)
@@ -49,15 +50,20 @@ def main(argv: list[str] | None = None) -> None:
         if algorithm == "ppo":
             from maton.ppo import load_policy, action
             policy = load_policy(args.checkpoint or args.run / "policy.eqx")
+            level = policy.curriculum_level
             act = lambda obs: action(policy, obs)
         else:
             from maton.dreamer import load_policy
             act = load_policy(args.checkpoint or args.run / "dreamer.pkl")
+            level = act.curriculum_level
+        env = config.environment()
+        level = args.level - 1 if args.level is not None else level
+        if not 0 <= level < len(env.curriculum.levels):
+            parser.error("--level is outside this curriculum")
         for index in range(args.episodes):
             if hasattr(act, "reset"):
                 act.reset()
-            record(config.environment(), act, args.output / f"episode-{index:04d}",
-                   args.seed + index)
+            record(env, act, args.output / f"episode-{index:04d}", args.seed + index, level)
     else:
         from maton.replay import render_episode
         print(render_episode(args.episode, args.output))

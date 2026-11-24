@@ -26,7 +26,8 @@ def test_blocks_are_bounded_and_flat_course_is_flat():
     assert np.all(np.asarray(sample_terrain(jax.random.key(2), cfg)[:, 0]) == 0)
 
 
-@pytest.mark.parametrize('kwargs', [dict(gap_frequency=0.9), dict(block_width=2), dict(gap_height=2), dict(slots=0)])
+@pytest.mark.parametrize('kwargs', [dict(gap_frequency=0.9), dict(block_width=2), dict(gap_height=-1),
+                                    dict(gap_height=float('inf')), dict(slots=0)])
 def test_invalid_terrain(kwargs):
     with pytest.raises(ValueError):
         TerrainConfig(**kwargs)

@@ -1,4 +1,5 @@
 import jax
+import equinox as eqx
 import jax.numpy as jnp
 import mujoco
 import numpy as np
@@ -44,11 +45,9 @@ def test_jitted_rollout_potential_reward_and_timeout(env):
     assert float(state.data.sensordata.sum()) > 0
 
 
-def test_fall_terminates_and_action_is_clipped(env):
+def test_fall_allows_recovery_and_action_is_clipped(env):
     state = jax.jit(env.reset)(jax.random.key(0))
-    state = state.__class__(state.data.replace(qpos=state.data.qpos.at[1].set(-0.7)),
-                            state.terrain, state.steps, state.reward, state.terminated,
-                            state.truncated, state.action)
+    state = eqx.tree_at(lambda s: s.data.qpos, state, state.data.qpos.at[1].set(-0.7))
     state = jax.jit(env.step)(state, jnp.full(4, 100))
-    assert bool(state.terminated)
+    assert not bool(state.terminated)
     np.testing.assert_array_equal(state.action, np.ones(4))

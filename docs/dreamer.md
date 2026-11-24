@@ -11,6 +11,8 @@ trains the upstream world model, imagination policy, and value function.
 - `metrics.jsonl`: update losses and completed episode returns. Upstream returns
   training metrics one update asynchronously behind the update counter.
 - `dreamer.pkl`: final checkpoint; `dreamer-XXXXXXXX.pkl`: periodic snapshots.
+- Upright course finishes advance the curriculum; falls may recover before timeout.
+- Checkpoints include curriculum progress and default evaluation level.
 - Checkpoints contain model, optimizer, RNG counters, and architecture settings.
   Replay is intentionally transient; this harness starts fresh training runs.
 - Evaluation restores a recurrent policy. Reset it between episodes. Upstream

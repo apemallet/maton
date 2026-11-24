@@ -11,6 +11,7 @@ import numpy as np
 from jaxtyping import Array
 
 from maton.terrain import TerrainConfig, rectangles, sample_terrain
+from maton.curriculum import CurriculumConfig, Level
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,8 @@ class State(eqx.Module):
     terminated: Array
     truncated: Array
     action: Array
+    level: Array
+    success: Array
 
     @property
     def done(self):
@@ -83,9 +86,12 @@ def _xml(config: EnvConfig, terrain: TerrainConfig) -> str:
 class WalkerEnv:
     action_size = 4
 
-    def __init__(self, config: EnvConfig = EnvConfig(), terrain: TerrainConfig = TerrainConfig()):
+    def __init__(self, config: EnvConfig = EnvConfig(), terrain: TerrainConfig = TerrainConfig(),
+                 curriculum: CurriculumConfig | None = None):
         self.config = config
-        self.terrain_config = terrain
+        self.curriculum = curriculum or CurriculumConfig((Level("course", 1, terrain),))
+        self.terrain_config = terrain = self.curriculum.levels[0].terrain
+        self._floor_bottom = -max(1.0, max(x.terrain.gap_height for x in self.curriculum.levels) + 0.5)
         self.observation_size = 20 + config.lidar_count
         self.model = mujoco.MjModel.from_xml_string(_xml(config, terrain))  # pyright: ignore[reportAttributeAccessIssue]
         self.mjx_model = mjx.put_model(self.model)
@@ -94,19 +100,20 @@ class WalkerEnv:
 
     def _model(self, terrain: Array):
         rect = rectangles(terrain, self.terrain_config)
-        pos = jnp.stack(((rect[:, 0] + rect[:, 1]) / 2, jnp.zeros(len(rect)), (rect[:, 2] - 1.0) / 2), -1)
-        size = jnp.stack(((rect[:, 1] - rect[:, 0]) / 2, jnp.full(len(rect), 0.6), (rect[:, 2] + 1.0) / 2), -1)
+        pos = jnp.stack(((rect[:, 0] + rect[:, 1]) / 2, jnp.zeros(len(rect)), (rect[:, 2] + self._floor_bottom) / 2), -1)
+        size = jnp.stack(((rect[:, 1] - rect[:, 0]) / 2, jnp.full(len(rect), 0.6), (rect[:, 2] - self._floor_bottom) / 2), -1)
         return self.mjx_model.replace(geom_pos=self.mjx_model.geom_pos.at[:self._ground_count].set(pos),
                                       geom_size=self.mjx_model.geom_size.at[:self._ground_count].set(size),
                                       geom_rbound=self.mjx_model.geom_rbound.at[:self._ground_count].set(jnp.linalg.norm(size, axis=-1)))
 
-    def reset(self, key: Array) -> State:
+    def reset(self, key: Array, level=0) -> State:
         terrain_key, pose_key = jax.random.split(key)
-        terrain = sample_terrain(terrain_key, self.terrain_config)
+        terrain = jnp.stack([sample_terrain(terrain_key, x.terrain) for x in self.curriculum.levels])[level]
         pose = jax.random.uniform(pose_key, (7,), minval=-self.config.reset_noise, maxval=self.config.reset_noise)
         data = self._data.replace(qpos=pose, qvel=jnp.zeros(7), ctrl=jnp.zeros(4))
         data = mjx.forward(self._model(terrain), data)
-        return State(data, terrain, jnp.array(0), jnp.float32(0), jnp.array(False), jnp.array(False), jnp.zeros(4))
+        return State(data, terrain, jnp.array(0), jnp.float32(0), jnp.array(False), jnp.array(False),
+                     jnp.zeros(4), jnp.asarray(level), jnp.array(False))
 
     def step(self, state: State, action: Array) -> State:
         action = jnp.clip(jnp.nan_to_num(action), -1.0, 1.0)
@@ -121,16 +128,18 @@ class WalkerEnv:
         # Preserve a finite terminal observation so a failed simulation cannot poison replay.
         data = jax.lax.cond(finite, lambda: data, lambda: state.data)
         fallen = (data.qpos[1] + 1.0 < 0.5) | (jnp.abs(data.qpos[2]) > 1.4)
-        finished = data.qpos[0] >= self.terrain_config.length - 0.5
-        terminated = fallen | finished | ~finite | (data.qpos[0] < -1.5)
+        finished = data.qpos[0] >= self.terrain_config.length
+        success = finished & ~fallen & finite
+        terminated = success | ~finite | (data.qpos[0] < -1.5)
         steps = state.steps + 1
         return State(data, state.terrain, steps, reward, terminated,
-                     (steps >= self.config.episode_length) & ~terminated, action)
+                     (steps >= self.config.episode_length) & ~terminated, action,
+                     state.level, success)
 
     def lidar(self, state: State) -> Array:
         """Exact planar ray intersections with the same boxes used by physics."""
         rect = rectangles(state.terrain, self.terrain_config)
-        low = jnp.stack((rect[:, 0], jnp.full(len(rect), -1.0)), -1)
+        low = jnp.stack((rect[:, 0], jnp.full(len(rect), self._floor_bottom)), -1)
         high = jnp.stack((rect[:, 1], rect[:, 2]), -1)
         angle = jnp.linspace(-jnp.pi / 2, jnp.pi / 12, self.config.lidar_count) - state.data.qpos[2]
         direction = jnp.stack((jnp.cos(angle), jnp.sin(angle)), -1)

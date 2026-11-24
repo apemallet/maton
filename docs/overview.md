@@ -1,17 +1,19 @@
 # Walker and course
 
 - Planar root translation/pitch; two hips and two knees, four ±20 Nm motors.
-- Default 100 Hz physics, two steps per action. Falling, leaving the course, or
-  reaching the finish terminates; episode time limits truncate.
+- Default 100 Hz physics, two steps per action. Upright course completion and leaving the backward
+  course boundary terminate; episode time limits truncate. Falls may recover.
 - Nine normalized lidar rays, torso height/orientation, four joint angles,
   seven velocities, two foot contacts, and previous actions: 29 floats.
 - Lidar intersects the same terrain boxes used by MJX. Rays rotate with the torso,
   spanning straight down to 15° above forward.
 
+Jobs reference the six-level [curriculum](curriculum.md), starting with flat walking.
 Each terrain slot independently selects a block, gap, or flat floor. Frequencies
 are probabilities per slot and must sum to at most one. Heights and widths are
 sampled uniformly from 50–100% of their configured maxima; `gap_height` is depth
-below the floor. Gaps have bottoms and vertical sides. A clear starting platform
+below the floor. Gaps have physical bottoms and vertical sides; later levels
+use 5–20 m depths without any gap-entry or fall kill rule. A clear starting platform
 precedes the slots. Resetting randomizes geometry without changing JAX shapes.
 
 Progress potential is `Phi(x) = progress_scale * x`. Each action earns
@@ -27,12 +29,13 @@ Neither harness currently resumes training/replay from an existing run.
 
 `maton rollout RUN --checkpoint FILE --output EVAL --episodes 3 --seed 1000`
 evaluates fresh seeded courses with recurrent state reset between episodes.
-Omit `--checkpoint` for final weights. Each episode contains:
+Omit `--checkpoint` for final weights. Evaluation defaults to the checkpoint
+curriculum level; `--level 6` selects the last level. Each episode contains:
 
 - `trajectory.npz`: initial and subsequent qpos/qvel, actions, observations,
   rewards, and terrain.
 - `model.xml`: the exact sampled course and robot.
-- `episode.json`: seed, return, distance, duration, and ending reason.
+- `episode.json`: seed, return, distance, duration, level, and success.
 
 `maton render EVAL/episode-0000` produces `episode.mp4` from a side-on projection
 of the saved MuJoCo geometry. It needs no display, GPU, or policy checkpoint.

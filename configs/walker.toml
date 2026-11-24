@@ -1,5 +1,6 @@
 # Tiny development run; increase budgets only after inspecting saved episodes.
 seed = 0
+curriculum = "curricula/walker.toml"
 
 [env]
 timestep = 0.01
@@ -11,28 +12,16 @@ reset_noise = 0.01
 progress_scale = 1.0
 control_cost = 0.001
 
-[terrain]
-slots = 10
-spacing = 1.5
-start_length = 2.0
-# Probabilities per slot; together must be <= 1.
-block_frequency = 0.2
-block_height = 0.12
-block_width = 0.35
-gap_frequency = 0.1
-gap_height = 0.15
-gap_width = 0.3
-
 [training]
 # Actual environment transitions, summed over parallel environments.
-steps = 256
+steps = 8_192
 learning_rate = 0.0001
 checkpoint_every = 64
 
 [ppo]
 num_envs = 2
 rollout_steps = 32
-epochs = 2
+epochs = 4
 minibatch_size = 32
 hidden_size = 64
 

@@ -11,9 +11,11 @@ import numpy as np
 import mujoco
 
 
-def record(env: Any, policy: Callable, output: Path, seed: int) -> Path:
+def record(env: Any, policy: Callable, output: Path, seed: int, level: int = 0) -> Path:
+    if not 0 <= level < len(env.curriculum.levels):
+        raise ValueError("Invalid curriculum level")
     output.mkdir(parents=True, exist_ok=False)
-    state = jax.jit(env.reset)(jax.random.key(seed))
+    state = jax.jit(env.reset)(jax.random.key(seed), level)
     step = jax.jit(env.step)
     positions = [np.asarray(state.data.qpos)]
     velocities = [np.asarray(state.data.qvel)]
@@ -40,6 +42,8 @@ def record(env: Any, policy: Callable, output: Path, seed: int) -> Path:
                         rewards=np.asarray(rewards), observations=np.asarray(observations),
                         terrain=np.asarray(state.terrain))
     summary = dict(seed=seed, steps=len(rewards), reward=sum(rewards),
+                   level=level, level_name=env.curriculum.levels[level].name,
+                   success=bool(state.success),
                    distance=float(positions[-1][0] - positions[0][0]),
                    terminated=bool(state.terminated), truncated=bool(state.truncated),
                    dt=env.config.timestep * env.config.frame_skip)

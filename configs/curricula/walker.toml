@@ -1,0 +1,57 @@
+# Cumulative successful course finishes required at EACH level.
+successes_required = 5
+
+# Geometry topology is shared by every level; changes do not recompile MJX.
+[terrain]
+slots = 3
+spacing = 1.0
+start_length = 1.0
+block_frequency = 0.0
+gap_frequency = 0.0
+
+[[levels]]
+name = "flat-walking"
+
+[[levels]]
+name = "small-blocks"
+[levels.terrain]
+block_frequency = 0.25
+block_height = 0.05
+block_width = 0.2
+
+[[levels]]
+name = "larger-blocks"
+[levels.terrain]
+block_frequency = 0.5
+block_height = 0.12
+block_width = 0.3
+
+[[levels]]
+name = "shallow-recesses"
+[levels.terrain]
+block_frequency = 0.3
+block_height = 0.12
+block_width = 0.3
+gap_frequency = 0.2
+gap_height = 0.15
+gap_width = 0.25
+
+[[levels]]
+name = "dangerous-gaps"
+[levels.terrain]
+block_frequency = 0.3
+block_height = 0.18
+block_width = 0.3
+gap_frequency = 0.35
+gap_height = 10.0
+gap_width = 0.45
+
+[[levels]]
+name = "treacherous-terrain"
+[levels.terrain]
+block_frequency = 0.35
+block_height = 0.22
+block_width = 0.35
+gap_frequency = 0.55
+gap_height = 20.0
+gap_width = 0.65

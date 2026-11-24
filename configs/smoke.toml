@@ -1,13 +1,9 @@
 seed = 0
+curriculum = "curricula/walker.toml"
 
 [env]
 frame_skip = 1
 episode_length = 16
-
-[terrain]
-slots = 1
-block_frequency = 0.2
-gap_frequency = 0.1
 
 [training]
 # Actual environment transitions, summed over parallel environments.

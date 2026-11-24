@@ -9,6 +9,11 @@
 `[training]` sets the transition budget, learning rate, and checkpoint interval.
 PPO saves at completed rollout updates; numbered filenames use transition counts.
 
+Falls and pit entries remain live until recovery, finish, or timeout.
+Curriculum promotion counts upright course finishes across environments. In-flight
+episodes finish on their assigned level; old-level completions cannot promote the next.
+Metrics and checkpoint metadata include curriculum progress.
+
 Training writes `metrics.csv`, `summary.json`, `policy.eqx`, and numbered inference
 snapshots in `checkpoints/`. Every snapshot has JSON model metadata.
 `load_policy(path)` accepts a run directory or a snapshot; `action(policy, obs)`

@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -7,7 +8,7 @@ from maton.config import Config, load_run, save_run
 
 def test_root_configs_and_resolved_snapshot(tmp_path):
     config = Config.load("configs/smoke.toml")
-    assert config.resolved()["terrain"]["slots"] == 1
+    assert len(config.resolved()["curriculum"]["levels"]) == 6
     assert config.resolved()["training"]["steps"] == 16
     output = tmp_path / "run"
     save_run(config, "ppo", output)
@@ -26,6 +27,7 @@ def test_root_configs_and_resolved_snapshot(tmp_path):
                                      "[training]\nsteps=0"])
 def test_reject_bad_config(tmp_path, contents):
     path = tmp_path / "bad.toml"
-    path.write_text(contents)
+    reference = Path("configs/curricula/walker.toml").resolve()
+    path.write_text(f'curriculum = "{reference}"\n' + contents)
     with pytest.raises((ValueError, TypeError)):
         Config.load(path)

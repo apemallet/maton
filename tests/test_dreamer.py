@@ -8,6 +8,8 @@ from typing import NamedTuple
 from maton import dreamer
 from maton.dreamer import DreamerConfig, _JaxCompat, _observation, agent_config
 from maton.training import TrainingConfig
+from maton.curriculum import CurriculumConfig, Level
+from maton.terrain import TerrainConfig
 
 
 def test_config_validation():
@@ -67,16 +69,23 @@ def test_budget_and_checkpoint_units_exclude_episode_reset_bookkeeping(tmp_path,
         reward: object
         done: object
         terminated: object
+        level: object
+        success: object
 
     class Env:
-        def reset(self, key):
-            return State(jnp.array(0), jnp.array(0.), jnp.array(False), jnp.array(False))
+        flat = TerrainConfig(block_frequency=0, gap_frequency=0)
+        curriculum = CurriculumConfig((Level("one", 2, flat), Level("two", 2, flat)))
+
+        def reset(self, key, level=0):
+            return State(jnp.array(0), jnp.array(0.), jnp.array(False), jnp.array(False),
+                         jnp.asarray(level), jnp.array(False))
 
         def observation(self, state):
             return jnp.array([state.steps], dtype=jnp.float32)
 
         def step(self, state, action):
-            return State(state.steps + 1, jnp.array(1.), state.steps >= 1, jnp.array(False))
+            return State(state.steps + 1, jnp.array(1.), state.steps >= 1, jnp.array(False),
+                         state.level, state.steps >= 1)
 
     monkeypatch.setattr(dreamer, '_runtime', lambda: (elements, embodied, Agent))
     result = dreamer.train(Env(), DreamerConfig(batch_length=2, train_every=2),
@@ -84,6 +93,8 @@ def test_budget_and_checkpoint_units_exclude_episode_reset_bookkeeping(tmp_path,
     assert result['steps'] == 8
     assert result['episodes'] == 4
     assert result['updates'] == 4
+    assert result['curriculum']['complete']
+    assert result['curriculum']['level'] == 1
     assert sorted(p.name for p in tmp_path.glob('dreamer-*.pkl')) == [
         'dreamer-00000003.pkl', 'dreamer-00000006.pkl']
     import pickle
@@ -91,3 +102,4 @@ def test_budget_and_checkpoint_units_exclude_episode_reset_bookkeeping(tmp_path,
         payload = pickle.load(handle)
     assert payload['step'] == 8
     assert payload['training']['checkpoint_every'] == 3
+    assert payload['curriculum']['level'] == 1

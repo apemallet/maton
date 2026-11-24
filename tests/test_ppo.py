@@ -8,6 +8,8 @@ import pytest
 
 from maton.ppo import PPOConfig, Policy, action, advantages, load_policy, log_probability, train
 from maton.training import TrainingConfig
+from maton.curriculum import CurriculumConfig, Level
+from maton.terrain import TerrainConfig
 
 
 def test_advantages_bootstrap_timeout_but_stop_at_reset():
@@ -32,21 +34,26 @@ class ToyState(eqx.Module):
     reward: jax.Array
     terminated: jax.Array
     truncated: jax.Array
+    level: jax.Array
+    success: jax.Array
 
 
 class ToyEnv:
     action_size = 1
+    curriculum = CurriculumConfig((Level("toy", 1, TerrainConfig()),))
 
-    def reset(self, key):
+    def reset(self, key, level=0):
         return ToyState(jax.random.uniform(key, (), minval=-0.1, maxval=0.1),
-                        jnp.array(0), jnp.array(0.), jnp.array(False), jnp.array(False))
+                        jnp.array(0), jnp.array(0.), jnp.array(False), jnp.array(False),
+                        jnp.asarray(level), jnp.array(False))
 
     def observation(self, state):
         return jnp.array([state.x, state.steps / 3])
 
     def step(self, state, action):
         return ToyState(state.x + action[0] * 0.1, state.steps + 1,
-                        1. - (action[0] - 0.5) ** 2, jnp.array(False), state.steps >= 2)
+                        1. - (action[0] - 0.5) ** 2, jnp.array(False), state.steps >= 2,
+                        state.level, jnp.array(False))
 
 
 def test_training_updates_and_checkpoint_roundtrip(tmp_path):
@@ -87,3 +94,21 @@ def test_budget_must_fit_parallel_environment_count(tmp_path):
 def test_config_rejects_partial_minibatch():
     with pytest.raises(ValueError, match='divisible'):
         PPOConfig(num_envs=1, rollout_steps=7, minibatch_size=3)
+
+
+def test_batched_training_advances_only_on_successes(tmp_path):
+    flat = TerrainConfig(block_frequency=0, gap_frequency=0)
+
+    class SuccessfulEnv(ToyEnv):
+        curriculum = CurriculumConfig((Level("one", 2, flat), Level("two", 2, flat)))
+
+        def step(self, state, action):
+            result = super().step(state, action)
+            return eqx.tree_at(lambda s: (s.terminated, s.truncated, s.success), result,
+                               (jnp.array(True), jnp.array(False), jnp.array(True)))
+
+    config = PPOConfig(num_envs=2, rollout_steps=4, epochs=1, minibatch_size=4, hidden_size=8)
+    result = train(SuccessfulEnv(), config, TrainingConfig(steps=8), tmp_path)
+    assert result['curriculum']['level'] == 1
+    assert result['curriculum']['complete']
+    assert load_policy(tmp_path).curriculum_level == 1

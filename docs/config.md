@@ -4,6 +4,7 @@
 
 | Option | Default | Meaning                                                                                                  |
 | ------ | ------- | -------------------------------------------------------------------------------------------------------- |
+| `curriculum` | required | Curriculum TOML path, relative to the job TOML. Resolved levels are embedded in `run.json`. |
 | `seed` | `0`     | Integer seed for policy initialization, sampling, and training courses. CLI `train --seed` overrides it. |
 
 ## `[env]`: physics, observations, reward
@@ -20,14 +21,20 @@
 | `control_cost`   | `0.001` | Nonnegative penalty multiplier for mean squared normalized motor actions.                                                                                                 |
 
 Action duration is `timestep * frame_skip`; maximum simulated episode duration is
-`episode_length * timestep * frame_skip`. Falls and course completion can end an
-episode earlier. Increasing `frame_skip` holds each command longer.
+`episode_length * timestep * frame_skip`. Successful course completion
+can end an episode earlier; falls may recover until the time limit. Increasing `frame_skip` holds each command longer.
 
 Reward per action is `progress_scale * (next_x - x) - control_cost * mean(action²)`.
 The effort penalty is per action, without an additional duration multiplier.
 Observation size is `20 + lidar_count`. Rays span downward to 15° above forward.
 
-## `[terrain]`: procedural course
+## Curriculum TOML: levels and procedural course
+
+Jobs reference a separate curriculum instead of declaring `[terrain]`. See
+[curricula/walker.toml](../configs/curricula/walker.toml) and [curriculum rules](curriculum.md).
+The curriculum has shared `[terrain]` defaults and ordered `[[levels]]` entries
+with a `name`, optional `successes_required`, and `[levels.terrain]` overrides.
+Root `successes_required` defaults to five per level.
 
 All lengths are in metres. Each slot independently selects a block, gap, or flat
 floor. Frequencies are probabilities **per slot**, not obstacles per metre.
@@ -43,11 +50,13 @@ their configured maxima. Terrain is resampled on each episode reset.
 | `block_height`    | `0.12`  | Maximum block elevation above the floor; nonnegative.                                                           |
 | `block_width`     | `0.35`  | Maximum block width; strictly between zero and `spacing`.                                                       |
 | `gap_frequency`   | `0.1`   | Probability of a floor recess in a slot; `[0, 1]`.                                                              |
-| `gap_height`      | `0.15`  | Maximum recess depth below the floor; `[0, 1)` because the floor bed is one metre deep.                         |
+| `gap_height`      | `0.15`  | Maximum recess depth below the floor; finite and nonnegative; floor geometry extends below the deepest configured gap.                         |
 | `gap_width`       | `0.3`   | Maximum recess width; strictly between zero and `spacing`.                                                      |
 
 `block_frequency + gap_frequency` must be at most one; the remaining probability
-produces flat floor. Gaps have bottoms and vertical sides. Course length forward
+produces flat floor. Gaps have physical bottoms and vertical sides; entering a gap
+does not trigger termination. Deep gaps rely on physical difficulty and timeout. Levels share `slots`, `spacing`, and `start_length`
+to retain fixed MJX shapes. Course length forward
 from the start is `start_length + slots * spacing`.
 
 ## `[training]`: shared trainer settings
@@ -120,6 +129,7 @@ device selection. See [Dreamer integration](dreamer.md).
 | `rollout` | `--checkpoint` | Optional specific snapshot; otherwise final run weights.                        |
 | `rollout` | `--output`     | Required evaluation directory; each episode subdirectory must be new.           |
 | `rollout` | `--seed`       | `1000`; course seed for the first episode, incremented for subsequent episodes. |
+| `rollout` | `--level` | Optional 1-based curriculum level; defaults to the saved checkpoint level. |
 | `rollout` | `--episodes`   | `1`; positive number of episodes.                                               |
 | `render`  | `episode`      | Required positional saved episode directory.                                    |
 | `render`  | `--output`     | Defaults to `episode/episode.mp4`; destination video path.                      |

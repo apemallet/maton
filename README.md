@@ -24,7 +24,9 @@ uv run maton rollout data/ppo-dev --checkpoint data/ppo-dev/checkpoints/step-000
 ```
 
 Edit [configs/walker.toml](configs/walker.toml) for course difficulty, sensors,
-simulation, network sizes, and training budgets. [configs/smoke.toml](configs/smoke.toml)
+simulation, network sizes, and training budgets. Jobs reference the separate
+[six-level curriculum](configs/curricula/walker.toml), starting with flat walking;
+see [advancement rules](docs/curriculum.md). [configs/smoke.toml](configs/smoke.toml)
 uses one terrain slot and minimal updates. Dreamer defaults to CPU; set
 `dreamer.platform = "gpu"` for a GPU run.
 See the [configuration reference](docs/config.md) for every option,

@@ -1,5 +1,6 @@
 """Fixed-topology, randomly sampled block and trench courses."""
 from dataclasses import dataclass
+import math
 from typing import cast
 
 import einx
@@ -28,8 +29,8 @@ class TerrainConfig:
             raise ValueError("Block and gap frequencies must be probabilities with sum <= 1")
         if not (0 < self.block_width < self.spacing and 0 < self.gap_width < self.spacing):
             raise ValueError("Obstacle widths must lie strictly inside slot spacing")
-        if self.block_height < 0 or not 0 <= self.gap_height < 1:
-            raise ValueError("Heights must be nonnegative and gap depth < 1m")
+        if not all(math.isfinite(x) and x >= 0 for x in (self.block_height, self.gap_height)):
+            raise ValueError("Heights and gap depths must be finite and nonnegative")
 
     @property
     def length(self) -> float:

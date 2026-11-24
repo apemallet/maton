@@ -14,6 +14,7 @@ import jax
 import numpy as np
 
 from maton.training import TrainingConfig
+from maton.curriculum import CurriculumProgress
 
 UPSTREAM_COMMIT = "e01491fad6434b2245a3b8ca201dd7faedcc458c"
 
@@ -118,13 +119,15 @@ def _observation(vector, *, reward=0.0, first=False, last=False, terminal=False)
             "is_terminal": np.asarray(terminal)}
 
 
-def _save(agent, path: Path, config: DreamerConfig, training: TrainingConfig, obs_size: int, action_size: int, seed: int, step: int):
+def _save(agent, path: Path, config: DreamerConfig, training: TrainingConfig, obs_size: int, action_size: int,
+          seed: int, step: int, curriculum: CurriculumProgress):
     agent_state = agent.save()
     for name, value in agent_state["params"].items():
         if not np.isfinite(np.asarray(value)).all():
             raise FloatingPointError(f"Nonfinite Dreamer checkpoint parameter {name}")
     payload = {"agent": agent_state, "config": asdict(config), "obs_size": obs_size,
                "training": asdict(training),
+               "curriculum": curriculum.snapshot(),
                "action_size": action_size, "seed": seed, "step": step,
                "upstream_commit": UPSTREAM_COMMIT}
     temporary = path.with_suffix(".tmp")
@@ -135,8 +138,9 @@ def _save(agent, path: Path, config: DreamerConfig, training: TrainingConfig, ob
 
 class DreamerPolicy:
     """Recurrent seeded evaluation policy; call reset() between episodes."""
-    def __init__(self, agent, action_counter: int = 0):
+    def __init__(self, agent, action_counter: int = 0, curriculum_level: int = 0):
         self.agent = agent
+        self.curriculum_level = curriculum_level
         self.action_counter = action_counter
         self.reset()
 
@@ -168,7 +172,7 @@ def load_policy(checkpoint: Path | str) -> DreamerPolicy:
     obs, act = _spaces(payload["obs_size"], payload["action_size"])
     agent = Agent(obs, act, agent_config(config, training, checkpoint.parent, payload["seed"]))
     agent.load(payload["agent"])
-    return DreamerPolicy(agent)
+    return DreamerPolicy(agent, curriculum_level=payload["curriculum"]["level"])
 
 
 def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Path, seed: int = 0):
@@ -178,9 +182,10 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
     _, embodied, Agent = _runtime()
     key = jax.random.key(seed)
     key, reset_key = jax.random.split(key)
+    curriculum = CurriculumProgress(env.curriculum)
     reset_fn = jax.jit(env.reset)
     observation_fn = jax.jit(env.observation)
-    state = reset_fn(reset_key)
+    state = reset_fn(reset_key, curriculum.level)
     vector = np.asarray(observation_fn(state), np.float32)
     obs_space, act_space = _spaces(vector.size, 4)
     agent = Agent(obs_space, act_space, agent_config(config, training, output, seed))
@@ -205,7 +210,7 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
                         **{k: np.asarray(v[0]) for k, v in extras.items()}})
             if bool(obs["is_last"]):
                 key, reset_key = jax.random.split(key)
-                state = reset_fn(reset_key)
+                state = reset_fn(reset_key, curriculum.level)
                 obs = _observation(observation_fn(state), first=True)
                 continue  # Replay needs episode boundaries; these are not env transitions.
             else:
@@ -216,7 +221,10 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
                 episode_return += float(state.reward)
                 if bool(state.done):
                     episodes += 1
-                    metrics.write(json.dumps({"step": step, "episode_return": episode_return, "episodes": episodes}) + "\n")
+                    curriculum.record(bool(state.success), int(state.level))
+                    metrics.write(json.dumps({"step": step, "episode_return": episode_return, "episodes": episodes,
+                                              "success": bool(state.success), "episode_level": int(state.level),
+                                              "curriculum": curriculum.snapshot()}) + "\n")
                     episode_return = 0.0
             if len(replay) >= config.batch_size and step % config.train_every == 0:
                 train_carry, _, mets = agent.train(train_carry, next(batches))
@@ -231,9 +239,10 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
                 metrics.write(json.dumps(record) + "\n")
                 metrics.flush()
             if training.checkpoint_due(step - 1, step):
-                _save(agent, output / f"dreamer-{step:08d}.pkl", config, training, vector.size, 4, seed, step)
-        _save(agent, output / "dreamer.pkl", config, training, vector.size, 4, seed, training.steps)
+                _save(agent, output / f"dreamer-{step:08d}.pkl", config, training, vector.size, 4, seed, step, curriculum)
+        _save(agent, output / "dreamer.pkl", config, training, vector.size, 4, seed, training.steps, curriculum)
     summary = {"steps": training.steps, "updates": updates, "episodes": episodes,
-               "checkpoint": str(output / "dreamer.pkl"), "upstream_commit": UPSTREAM_COMMIT}
+               "checkpoint": str(output / "dreamer.pkl"), "upstream_commit": UPSTREAM_COMMIT,
+               "curriculum": curriculum.snapshot()}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary

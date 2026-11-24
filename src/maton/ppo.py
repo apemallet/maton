@@ -15,6 +15,7 @@ import numpy as np
 import optax
 
 from maton.training import TrainingConfig
+from maton.curriculum import CurriculumProgress
 
 
 @dataclass(frozen=True)
@@ -52,8 +53,10 @@ class Policy(eqx.Module):
     observation_size: int = eqx.field(static=True)
     action_size: int = eqx.field(static=True)
     hidden_size: int = eqx.field(static=True)
+    curriculum_level: int = eqx.field(static=True)
 
-    def __init__(self, observation_size: int, action_size: int, hidden_size: int, key: jax.Array):
+    def __init__(self, observation_size: int, action_size: int, hidden_size: int, key: jax.Array,
+                 curriculum_level: int = 0):
         actor_key, critic_key = jax.random.split(key)
         self.actor = eqx.nn.MLP(observation_size, action_size, hidden_size, 2,
                                activation=jax.nn.tanh, key=actor_key)
@@ -66,6 +69,7 @@ class Policy(eqx.Module):
         self.observation_size = observation_size
         self.action_size = action_size
         self.hidden_size = hidden_size
+        self.curriculum_level = curriculum_level
 
     def __call__(self, observation: jax.Array):
         return self.actor(observation), self.critic(observation)[0]
@@ -122,7 +126,8 @@ def _loss(policy, batch, config):
     return loss, (actor, critic, entropy, jnp.mean(old_logprob - logprob))
 
 
-def _save(policy: Policy, path: Path, step: int, config: PPOConfig, training: TrainingConfig):
+def _save(policy: Policy, path: Path, step: int, config: PPOConfig, training: TrainingConfig,
+          curriculum: CurriculumProgress):
     path.parent.mkdir(parents=True, exist_ok=True)
     eqx.tree_serialise_leaves(path, policy)
     path.with_suffix(".json").write_text(json.dumps({
@@ -130,6 +135,7 @@ def _save(policy: Policy, path: Path, step: int, config: PPOConfig, training: Tr
         "action_size": policy.action_size, "hidden_size": policy.hidden_size,
         "ppo": asdict(config),
         "training": asdict(training),
+        "curriculum": curriculum.snapshot(),
     }, indent=2) + "\n")
 
 
@@ -139,7 +145,7 @@ def load_policy(path: str | Path) -> Policy:
         path = path / "policy.eqx"
     metadata = json.loads(path.with_suffix(".json").read_text())
     policy = Policy(metadata["observation_size"], metadata["action_size"],
-                    metadata["hidden_size"], jax.random.PRNGKey(0))
+                    metadata["hidden_size"], jax.random.PRNGKey(0), metadata["curriculum"]["level"])
     return eqx.tree_deserialise_leaves(path, policy)
 
 
@@ -151,11 +157,12 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
     output.mkdir(parents=True, exist_ok=True)
     key = jax.random.PRNGKey(seed)
     key, reset_key, policy_key = jax.random.split(key, 3)
+    curriculum = CurriculumProgress(env.curriculum)
     reset_one = jax.jit(env.reset)
-    reset = jax.jit(jax.vmap(env.reset))
+    reset = jax.jit(jax.vmap(env.reset, in_axes=(0, None)))
     step = jax.jit(jax.vmap(env.step))
     observe = jax.jit(jax.vmap(env.observation))
-    states = reset(jax.random.split(reset_key, config.num_envs))
+    states = reset(jax.random.split(reset_key, config.num_envs), curriculum.level)
     observations = observe(states)
     policy = Policy(observations.shape[-1], env.action_size, config.hidden_size, policy_key)
     optimizer = optax.chain(optax.clip_by_global_norm(config.max_grad_norm),
@@ -177,7 +184,8 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
     with (output / "metrics.csv").open("w", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=["update", "steps", "reward_mean", "episodes",
                                                     "episode_return_mean", "loss", "actor_loss",
-                                                    "value_loss", "entropy", "approx_kl", "grad_norm"])
+                                                    "value_loss", "entropy", "approx_kl", "grad_norm",
+                                                    "curriculum_level", "curriculum_successes", "curriculum_complete"])
         writer.writeheader()
         total_updates = (training.steps + config.num_envs * config.rollout_steps - 1) // (config.num_envs * config.rollout_steps)
         for iteration in range(1, total_updates + 1):
@@ -198,9 +206,10 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
                 if done.any():
                     for index in np.flatnonzero(done):
                         completed_returns.append(float(episode_returns[index]))
+                        curriculum.record(bool(next_states.success[index]), int(next_states.level[index]))
                         episode_returns[index] = 0
                         key, reset_key = jax.random.split(key)
-                        fresh = reset_one(reset_key)
+                        fresh = reset_one(reset_key, curriculum.level)
                         states = jax.tree.map(lambda batch, item: batch.at[index].set(item), states, fresh)
                     observations = observe(states)
                 else:
@@ -229,6 +238,8 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
             record: dict[str, Any] = dict(zip(("loss", "actor_loss", "value_loss", "entropy", "approx_kl", "grad_norm"),
                               map(float, metrics), strict=True))
             record.update(update=iteration, steps=transitions, reward_mean=float(jnp.mean(rewards)),
+                          curriculum_level=curriculum.level, curriculum_successes=curriculum.successes,
+                          curriculum_complete=curriculum.complete,
                           episodes=len(completed_returns),
                           episode_return_mean=float(np.mean(completed_returns)) if completed_returns else 0.0)
             writer.writerow(record)
@@ -236,9 +247,9 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
             records.append(record)
             print(f"PPO {iteration}/{total_updates}: steps={transitions} loss={record['loss']:.4f}", flush=True)
             if training.checkpoint_due(previous_transitions, transitions) or transitions == training.steps:
-                _save(policy, output / "checkpoints" / f"step-{transitions:08d}.eqx", transitions, config, training)
-                _save(policy, output / "policy.eqx", transitions, config, training)
+                _save(policy, output / "checkpoints" / f"step-{transitions:08d}.eqx", transitions, config, training, curriculum)
+                _save(policy, output / "policy.eqx", transitions, config, training, curriculum)
     summary = {"algorithm": "ppo", "steps": transitions, "updates": total_updates,
-               "episodes": len(completed_returns), "last": records[-1]}
+               "episodes": len(completed_returns), "last": records[-1], "curriculum": curriculum.snapshot()}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary
