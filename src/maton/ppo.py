@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,7 @@ class PPOConfig:
     epochs: int = 2
     minibatch_size: int = 32
     hidden_size: int = 64
+    initial_std: float = math.exp(-0.5)
     gamma: float = 0.99
     gae_lambda: float = 0.95
     clip_ratio: float = 0.2
@@ -36,6 +38,8 @@ class PPOConfig:
         for name in ("num_envs", "rollout_steps", "epochs", "minibatch_size", "hidden_size"):
             if getattr(self, name) <= 0:
                 raise ValueError(f"ppo.{name} must be positive")
+        if not math.exp(-5) <= self.initial_std <= math.exp(2):
+            raise ValueError("ppo.initial_std must lie in [exp(-5), exp(2)]")
         if self.minibatch_size > self.num_envs * self.rollout_steps:
             raise ValueError("minibatch_size exceeds rollout batch")
         if self.num_envs * self.rollout_steps % self.minibatch_size:
@@ -56,7 +60,7 @@ class Policy(eqx.Module):
     curriculum_level: int = eqx.field(static=True)
 
     def __init__(self, observation_size: int, action_size: int, hidden_size: int, key: jax.Array,
-                 curriculum_level: int = 0):
+                 curriculum_level: int = 0, initial_std: float = math.exp(-0.5)):
         actor_key, critic_key = jax.random.split(key)
         self.actor = eqx.nn.MLP(observation_size, action_size, hidden_size, 2,
                                activation=jax.nn.tanh, key=actor_key)
@@ -65,7 +69,7 @@ class Policy(eqx.Module):
                                              jnp.zeros(action_size)))
         self.critic = eqx.nn.MLP(observation_size, 1, hidden_size, 2,
                                 activation=jax.nn.tanh, key=critic_key)
-        self.log_std = jnp.full((action_size,), -0.5)
+        self.log_std = jnp.full((action_size,), math.log(initial_std))
         self.observation_size = observation_size
         self.action_size = action_size
         self.hidden_size = hidden_size
@@ -95,6 +99,11 @@ def _sample(policy: Policy, observations, key):
     mean, value = jax.vmap(policy)(observations)
     raw = mean + jnp.exp(jnp.clip(policy.log_std, -5, 2)) * jax.random.normal(key, mean.shape)
     return jnp.tanh(raw), raw, log_probability(mean, policy.log_std, raw), value
+
+
+@eqx.filter_jit
+def _values(policy: Policy, observations):
+    return jax.vmap(policy)(observations)[1]
 
 
 def advantages(rewards, values, next_values, terminated, truncated, gamma, gae_lambda):
@@ -164,7 +173,8 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
     observe = jax.jit(jax.vmap(env.observation))
     states = reset(jax.random.split(reset_key, config.num_envs), curriculum.level)
     observations = observe(states)
-    policy = Policy(observations.shape[-1], env.action_size, config.hidden_size, policy_key)
+    policy = Policy(observations.shape[-1], env.action_size, config.hidden_size, policy_key,
+                    initial_std=config.initial_std)
     optimizer = optax.chain(optax.clip_by_global_norm(config.max_grad_norm),
                            optax.adam(training.learning_rate, eps=1e-5))
     optimizer_state = optimizer.init(eqx.filter(policy, eqx.is_inexact_array))
@@ -196,7 +206,7 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
                 actions, raw, logprob, value = _sample(policy, observations, sample_key)
                 next_states = step(states, actions)
                 next_observations = observe(next_states)
-                _, next_value = jax.vmap(policy)(next_observations)
+                next_value = _values(policy, next_observations)
                 rollout.append((observations, raw, logprob, value, next_states.reward,
                                 next_value, next_states.terminated, next_states.truncated))
                 episode_returns += np.asarray(next_states.reward)

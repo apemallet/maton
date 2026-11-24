@@ -3,3 +3,4 @@
 - visuals based on decoding "dreams" should accumulate LIDAR hit predictions into a predicted ("painted") obstacle course render
 - might be interesting to have a large obstacle curriculum with discrete levels and see if dreamer can skip levels
 - spider walker, pogo walker, "car" walker (triangle legs)
+- add a cliff that requires generalization to overcome; very poor reward gradient

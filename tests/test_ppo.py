@@ -112,3 +112,10 @@ def test_batched_training_advances_only_on_successes(tmp_path):
     assert result['curriculum']['level'] == 1
     assert result['curriculum']['complete']
     assert load_policy(tmp_path).curriculum_level == 1
+
+
+def test_configurable_initial_exploration():
+    policy = Policy(3, 4, 8, jax.random.PRNGKey(0), initial_std=0.2)
+    np.testing.assert_allclose(jnp.exp(policy.log_std), 0.2)
+    with pytest.raises(ValueError, match='initial_std'):
+        PPOConfig(initial_std=0.0)

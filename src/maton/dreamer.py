@@ -31,6 +31,10 @@ class DreamerConfig:
     classes: int = 4
     imag_length: int = 5
     platform: str = "cpu"
+    policy_minstd: float = 0.1
+    policy_maxstd: float = 1.0
+    optimizer_warmup: int = 0
+    learning_rate: float | None = None  # None shares training.learning_rate
 
     def __post_init__(self):
         for name in ("batch_size", "batch_length", "train_every", "replay_size", "hidden", "deter", "stoch", "classes", "imag_length"):
@@ -38,6 +42,12 @@ class DreamerConfig:
                 raise ValueError(f"dreamer.{name} must be positive")
         if self.batch_length < 2 or self.replay_size < self.batch_length * self.batch_size:
             raise ValueError("Dreamer needs batch_length >= 2 and enough replay capacity")
+        if type(self.optimizer_warmup) is not int or self.optimizer_warmup < 0:
+            raise ValueError("Dreamer optimizer_warmup must be a nonnegative integer")
+        if self.learning_rate is not None and not 0 < self.learning_rate < float("inf"):
+            raise ValueError("Dreamer learning_rate must be finite and positive")
+        if not (0 < self.policy_minstd <= self.policy_maxstd < float("inf")):
+            raise ValueError("Dreamer policy standard deviations must be finite, positive, and ordered")
         if self.deter % 4 or self.hidden % 4:
             raise ValueError("Dreamer deter and hidden must be divisible by 4 RSSM blocks")
 
@@ -70,7 +80,16 @@ def _runtime() -> tuple[Any, Any, Any]:
     agent_module.jax = proxy
     transform_module.jax = proxy
     internal_module.jax = proxy
-    return elements, embodied, Agent
+    class EvaluationAgent(Agent):
+        def policy(self, carry, obs, mode="train"):
+            carry, action, outs = super().policy(carry, obs, mode)
+            if mode == "eval":
+                distribution: Any = self.pol(self.feat2tensor(carry[1]), bdims=1)
+                action = {key: value.pred() for key, value in distribution.items()}
+                carry = (*carry[:3], action)
+            return carry, action, outs
+
+    return elements, embodied, EvaluationAgent
 
 
 def agent_config(config: DreamerConfig, training: TrainingConfig, output: Path, seed: int):
@@ -95,8 +114,10 @@ def agent_config(config: DreamerConfig, training: TrainingConfig, output: Path, 
         "agent.dec.simple.units": config.hidden,
         "agent.enc.simple.layers": 1, "agent.dec.simple.layers": 1,
         "agent.policy.layers": 1, "agent.value.layers": 1,
+        "agent.policy.minstd": config.policy_minstd,
+        "agent.policy.maxstd": config.policy_maxstd,
         "agent.imag_length": config.imag_length,
-        "agent.opt.lr": training.learning_rate, "agent.opt.warmup": 0,
+        "agent.opt.lr": training.learning_rate if config.learning_rate is None else config.learning_rate, "agent.opt.warmup": config.optimizer_warmup,
         "agent.report": False,
     })
     return elements.Config(**cfg.agent, logdir=cfg.logdir, seed=cfg.seed, jax=cfg.jax,
@@ -147,8 +168,8 @@ class DreamerPolicy:
     def reset(self):
         self.carry = self.agent.init_policy(1)
         self.first = True
-        # Upstream samples actions even in eval mode. Reset the action RNG counter
-        # to make retrospective evaluation repeatable without changing the model.
+        # Posterior RSSM samples still use randomness during evaluation. Reset
+        # that counter so each evaluation episode is reproducible.
         self.agent.n_actions.value = self.action_counter
 
     def __call__(self, observation):

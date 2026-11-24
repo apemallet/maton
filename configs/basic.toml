@@ -1,0 +1,38 @@
+# Tiny development run; increase budgets only after inspecting saved episodes.
+seed = 0
+curriculum = "curricula/walker.toml"
+
+[env]
+timestep = 0.01
+frame_skip = 2
+episode_length = 256
+lidar_count = 9
+lidar_range = 3.0
+reset_noise = 0.01
+progress_scale = 1.0
+control_cost = 0.001
+
+[training]
+# Actual environment transitions, summed over parallel environments.
+steps = 8_192
+learning_rate = 0.0001
+checkpoint_every = 64
+
+[ppo]
+num_envs = 2
+rollout_steps = 32
+epochs = 4
+minibatch_size = 32
+hidden_size = 64
+
+[dreamer]
+batch_size = 1
+batch_length = 8
+train_every = 16
+replay_size = 2048
+hidden = 32
+deter = 64
+stoch = 4
+classes = 4
+imag_length = 5
+platform = "cpu"

@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> None:
             result = train_dreamer(env, DreamerConfig(**config.dreamer), training, args.output, config.seed)
         print(json.dumps(result, indent=2))
     elif args.command == "rollout":
-        from maton.replay import record
+        from maton.replay import record, summarize_episodes
         config, algorithm = load_run(args.run)
         if args.episodes < 1:
             parser.error("--episodes must be positive")
@@ -60,10 +60,12 @@ def main(argv: list[str] | None = None) -> None:
         level = args.level - 1 if args.level is not None else level
         if not 0 <= level < len(env.curriculum.levels):
             parser.error("--level is outside this curriculum")
+        episodes = []
         for index in range(args.episodes):
             if hasattr(act, "reset"):
                 act.reset()
-            record(env, act, args.output / f"episode-{index:04d}", args.seed + index, level)
+            episodes.append(record(env, act, args.output / f"episode-{index:04d}", args.seed + index, level))
+        print(json.dumps(summarize_episodes(episodes, args.output / "summary.json"), indent=2))
     else:
         from maton.replay import render_episode
         print(render_episode(args.episode, args.output))

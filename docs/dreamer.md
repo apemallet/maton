@@ -7,7 +7,9 @@ trains the upstream world model, imagination policy, and value function.
 
 - Defaults: one environment, 256 transitions, 8-step sequences, 64 recurrent units.
 - `[training]` controls transition budget, learning rate, and checkpoint interval.
-- `[dreamer]` controls replay, network size, and device.
+- `[dreamer]` controls replay, network size, device, optimizer warmup, and action
+  noise bounds. Initial upstream action standard deviation is approximately
+  `minstd + 0.881 * (maxstd - minstd)`; it learns within those bounds.
 - `metrics.jsonl`: update losses and completed episode returns. Upstream returns
   training metrics one update asynchronously behind the update counter.
 - `dreamer.pkl`: final checkpoint; `dreamer-XXXXXXXX.pkl`: periodic snapshots.
@@ -15,8 +17,9 @@ trains the upstream world model, imagination policy, and value function.
 - Checkpoints include curriculum progress and default evaluation level.
 - Checkpoints contain model, optimizer, RNG counters, and architecture settings.
   Replay is intentionally transient; this harness starts fresh training runs.
-- Evaluation restores a recurrent policy. Reset it between episodes. Upstream
-  samples even in evaluation; resetting its RNG counter makes evaluation repeatable.
+- Evaluation restores a recurrent policy and uses the upstream action distribution
+  prediction (mean). Training keeps the upstream stochastic policy. Reset between
+  episodes to reset recurrent state and posterior sampling RNG.
 
 Upstream wheel packaging omits its `embodied.envs` namespace and default YAML.
 The adapter supplies the unused namespace and includes upstream defaults with

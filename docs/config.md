@@ -1,5 +1,8 @@
 # Configuration reference
 
+`configs/basic.toml` preserves the original small job. `configs/walker.toml`
+is the walking training job; `configs/smoke.toml` checks integration cheaply.
+
 ## Root
 
 | Option | Default | Meaning                                                                                                  |
@@ -17,16 +20,41 @@
 | `lidar_count`    | `9`     | Number of torso-relative range rays; positive integer. Changes observation size.                                                                                          |
 | `lidar_range`    | `3.0`   | Maximum range in metres; positive. Returned ranges are normalized to `[0, 1]`.                                                                                            |
 | `reset_noise`    | `0.01`  | Uniform initial position perturbation in `[-reset_noise, +reset_noise]` for all coordinates; metres for slides, radians for hinges. Nonnegative. Initial velocities zero. |
+| `progress_mode` | `"distance"` | `distance`: forward position potential; `upright`: position potential multiplied by height and uprightness scores. |
 | `progress_scale` | `1.0`   | Positive multiplier of forward displacement reward.                                                                                                                       |
-| `control_cost`   | `0.001` | Nonnegative penalty multiplier for mean squared normalized motor actions.                                                                                                 |
+| `control_cost`   | `0.001` | Nonnegative penalty multiplier for final-substep mean squared normalized motor torque.                                                                                                 |
+| `control_mode` | `"torque"` | `torque` commands normalized torque; `position` commands target angles with PD control each physics step. |
+| `torque_limit` | `20.0` | Positive motor torque cap in Nm. |
+| `position_kp` / `position_kd` | `30.0` / `2.0` | Position-mode proportional and damping gains; positive / nonnegative. |
+| `hip_target_min` / `hip_target_max` | `-1.1` / `0.5` | Position-mode hip target range in radians, within physical ±80° limits. |
+| `knee_target_min` / `knee_target_max` | `0.0` / `1.3` | Position-mode knee target range in radians, within physical −5° to 125° limits. |
+| `hip_target_neutral` / `knee_target_neutral` | unset | Zero-action target; defaults to range midpoint. Positive/negative actions interpolate separately to upper/lower bounds. |
+| `foot_length` | `0.0` | Foot capsule centreline length in metres, `[0, 0.5]`; zero preserves spherical feet. Total footprint extends another 0.075 m at each end. |
+| `finish_reward` | `0.0` | Nonnegative bonus paid once for upright course completion. |
+| `upright_reward` | `0.0` | Optional posture reward per simulated second; nonnegative. |
+
+Position mode maps negative/positive actions from the neutral target toward the lower/upper limit.
+With default ranges and no explicit neutral, zero commands target hips −0.3 rad and knees 0.65 rad.
+The walking job uses a straight neutral stance with short capsule feet. Torque is
+`clip(kp * (target - angle) - kd * angular_velocity, ±torque_limit)`.
 
 Action duration is `timestep * frame_skip`; maximum simulated episode duration is
 `episode_length * timestep * frame_skip`. Successful course completion
 can end an episode earlier; falls may recover until the time limit. Increasing `frame_skip` holds each command longer.
 
-Reward per action is `progress_scale * (next_x - x) - control_cost * mean(action²)`.
-The effort penalty is per action, without an additional duration multiplier.
-Observation size is `20 + lidar_count`. Rays span downward to 15° above forward.
+Reward per action is `Phi(next) - Phi(previous) - control_cost * mean(normalized_torque²)`
+plus `upright_reward * action_duration * posture_score` and a successful `finish_reward`.
+The posture score multiplies `clip((torso_height - 0.4) / 0.4, 0, 1)` and
+`clip(cos(pitch), 0, 1)`.
+
+- `distance`: `Phi = progress_scale * min(x, goal_x)`.
+- `upright`: the same field multiplied by `posture_score`. Falling loses accumulated
+  potential; recovery restores it. At a fixed posture, moving forward increases potential.
+
+Both fields saturate at the finish to prevent runoff rewards. The effort penalty
+is per action. Observation size is `20 + lidar_count` in distance mode;
+upright mode appends `x / course_length` so its field is observable.
+Rays span downward to 15° above forward.
 
 ## Curriculum TOML: levels and procedural course
 
@@ -111,6 +139,9 @@ value function. Unexposed upstream settings use the bundled, pinned defaults.
 | `stoch` | `4` | Categorical stochastic latent variables; positive integer. |
 | `classes` | `4` | Categories per latent variable; positive integer. |
 | `imag_length` | `5` | Imagined rollout horizon; positive integer. |
+| `policy_minstd` / `policy_maxstd` | `0.1` / `1.0` | Bounds on the actor's action standard deviation; positive, ordered. Position control needs far less than upstream's range. |
+| `optimizer_warmup` | `0` | Optimizer warmup updates; nonnegative integer. |
+| `learning_rate` | unset | Overrides `[training].learning_rate` for Dreamer only; upstream uses `4e-5`. |
 | `platform` | `"cpu"` | Dreamer JAX platform, typically `"cpu"` or `"gpu"`; hardware must be available. |
 
 Larger batches, sequences, latent states, and imagination horizons cost more
@@ -133,3 +164,7 @@ device selection. See [Dreamer integration](dreamer.md).
 | `rollout` | `--episodes`   | `1`; positive number of episodes.                                               |
 | `render`  | `episode`      | Required positional saved episode directory.                                    |
 | `render`  | `--output`     | Defaults to `episode/episode.mp4`; destination video path.                      |
+
+Rollout writes `summary.json` with success rate, distance, return, upright fraction,
+and individual seeded results. Upright means torso height ≥0.5 m and pitch within
+1.4 radians, matching the finish condition.

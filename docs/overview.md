@@ -1,10 +1,15 @@
 # Walker and course
 
-- Planar root translation/pitch; two hips and two knees, four ±20 Nm motors.
+- Planar root translation/pitch; two hips and two knees, four capped torque motors.
+- Actions command torque directly or joint targets with per-physics-step PD control.
+  The walking job uses position control; see [motor settings](config.md).
+- Optional short capsule feet widen the support footprint without extra joints;
+  `foot_length=0` preserves the original spherical feet.
 - Default 100 Hz physics, two steps per action. Upright course completion and leaving the backward
   course boundary terminate; episode time limits truncate. Falls may recover.
 - Nine normalized lidar rays, torso height/orientation, four joint angles,
   seven velocities, two foot contacts, and previous actions: 29 floats.
+  Upright progress mode adds normalized course position as a 30th value.
 - Lidar intersects the same terrain boxes used by MJX. Rays rotate with the torso,
   spanning straight down to 15° above forward.
 
@@ -16,9 +21,15 @@ below the floor. Gaps have physical bottoms and vertical sides; later levels
 use 5–20 m depths without any gap-entry or fall kill rule. A clear starting platform
 precedes the slots. Resetting randomizes geometry without changing JAX shapes.
 
-Progress potential is `Phi(x) = progress_scale * x`. Each action earns
-`Phi(next) - Phi(previous) - control_cost * mean(action²)`. Moving backward loses
-reward; standing still adds no progress. There is no survival bonus.
+Progress potential is `Phi(x) = progress_scale * min(x, course_length)`,
+saturating at the finish so running off the course earns no further progress.
+Optional `progress_mode="upright"` multiplies this potential by a height and
+uprightness score: falling loses progress potential, and recovery restores it. Each action earns
+`Phi(next) - Phi(previous) - control_cost * mean(normalized_torque²)`.
+An optional `upright_reward` adds a posture score per simulated second, weighted
+by torso height and uprightness. Moving backward loses progress reward;
+standing still adds no progress. An optional finish bonus rewards upright completion.
+Falls never terminate an episode.
 
 # Checkpoints and inspection
 

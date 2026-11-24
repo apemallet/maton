@@ -13,7 +13,7 @@ from maton.terrain import TerrainConfig
 
 
 def test_config_validation():
-    for kwargs in ({"batch_length": 1}, {"hidden": 31}):
+    for kwargs in ({"batch_length": 1}, {"hidden": 31}, {"optimizer_warmup": -1}, {"learning_rate": 0.0}, {"learning_rate": float("inf")}, {"policy_minstd": 0}, {"policy_maxstd": float("nan")}, {"policy_minstd": 0.5, "policy_maxstd": 0.1}):
         with pytest.raises(ValueError):
             DreamerConfig(**kwargs)
 
@@ -25,6 +25,13 @@ def test_small_upstream_config(tmp_path: Path):
     assert cfg.replay_context == 0
     assert cfg.jax.transfer_guard is False
     assert cfg.opt.lr == 0.0002
+    narrow = agent_config(DreamerConfig(policy_minstd=0.1, policy_maxstd=0.3, optimizer_warmup=1000), TrainingConfig(), tmp_path, 0)
+    assert narrow.policy.minstd == 0.1
+    assert narrow.policy.maxstd == 0.3
+    assert narrow.opt.warmup == 1000
+    assert narrow.opt.lr == 0.0001
+    own = agent_config(DreamerConfig(learning_rate=0.00004), TrainingConfig(learning_rate=0.0003), tmp_path, 0)
+    assert own.opt.lr == 0.00004
 
 
 def test_observation_boundary_semantics():
@@ -103,3 +110,20 @@ def test_budget_and_checkpoint_units_exclude_episode_reset_bookkeeping(tmp_path,
     assert payload['step'] == 8
     assert payload['training']['checkpoint_every'] == 3
     assert payload['curriculum']['level'] == 1
+
+
+def test_evaluation_uses_policy_prediction(monkeypatch):
+    from types import SimpleNamespace
+    from maton.dreamer import _runtime
+    from dreamerv3.agent import Agent
+    _, _, EvaluationAgent = _runtime()
+    carry = ({}, {"feature": 1}, {}, {"action": np.array([0.9])})
+    monkeypatch.setattr(Agent, "policy", lambda self, c, o, m: (carry, carry[-1], {}))
+    model = object.__new__(EvaluationAgent)
+    model.feat2tensor = lambda feature: feature
+    model.pol = lambda feature, bdims: {"action": SimpleNamespace(pred=lambda: np.array([0.2]))}
+    updated, action, _ = model.policy(carry, {}, "eval")
+    assert np.array_equal(action["action"], [0.2])
+    assert updated[-1] is action
+    _, sampled, _ = model.policy(carry, {}, "train")
+    assert np.array_equal(sampled["action"], [0.9])
