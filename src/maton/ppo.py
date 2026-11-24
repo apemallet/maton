@@ -14,26 +14,25 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
+from maton.training import TrainingConfig
+
 
 @dataclass(frozen=True)
 class PPOConfig:
-    updates: int = 4
     num_envs: int = 2
     rollout_steps: int = 32
     epochs: int = 2
     minibatch_size: int = 32
     hidden_size: int = 64
-    learning_rate: float = 3e-4
     gamma: float = 0.99
     gae_lambda: float = 0.95
     clip_ratio: float = 0.2
     value_coefficient: float = 0.5
     entropy_coefficient: float = 0.001
     max_grad_norm: float = 0.5
-    checkpoint_every: int = 1
 
     def __post_init__(self):
-        for name in ("updates", "num_envs", "rollout_steps", "epochs", "minibatch_size", "hidden_size", "checkpoint_every"):
+        for name in ("num_envs", "rollout_steps", "epochs", "minibatch_size", "hidden_size"):
             if getattr(self, name) <= 0:
                 raise ValueError(f"ppo.{name} must be positive")
         if self.minibatch_size > self.num_envs * self.rollout_steps:
@@ -42,8 +41,8 @@ class PPOConfig:
             raise ValueError("rollout batch must be divisible by minibatch_size")
         if not 0 <= self.gamma <= 1 or not 0 <= self.gae_lambda <= 1:
             raise ValueError("gamma and gae_lambda must be in [0, 1]")
-        if any(getattr(self, name) <= 0 for name in ("learning_rate", "clip_ratio", "max_grad_norm")):
-            raise ValueError("learning rate, clip ratio, and gradient norm must be positive")
+        if any(getattr(self, name) <= 0 for name in ("clip_ratio", "max_grad_norm")):
+            raise ValueError("Clip ratio and gradient norm must be positive")
 
 
 class Policy(eqx.Module):
@@ -123,13 +122,14 @@ def _loss(policy, batch, config):
     return loss, (actor, critic, entropy, jnp.mean(old_logprob - logprob))
 
 
-def _save(policy: Policy, path: Path, step: int, config: PPOConfig):
+def _save(policy: Policy, path: Path, step: int, config: PPOConfig, training: TrainingConfig):
     path.parent.mkdir(parents=True, exist_ok=True)
     eqx.tree_serialise_leaves(path, policy)
     path.with_suffix(".json").write_text(json.dumps({
         "algorithm": "ppo", "step": step, "observation_size": policy.observation_size,
         "action_size": policy.action_size, "hidden_size": policy.hidden_size,
         "ppo": asdict(config),
+        "training": asdict(training),
     }, indent=2) + "\n")
 
 
@@ -143,8 +143,10 @@ def load_policy(path: str | Path) -> Policy:
     return eqx.tree_deserialise_leaves(path, policy)
 
 
-def train(env: Any, config: PPOConfig, output: str | Path, seed: int = 0):
+def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | Path, seed: int = 0):
     """Train PPO and retain inference snapshots after each configured update."""
+    if training.steps % config.num_envs:
+        raise ValueError("training.steps must be divisible by ppo.num_envs")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     key = jax.random.PRNGKey(seed)
@@ -157,7 +159,7 @@ def train(env: Any, config: PPOConfig, output: str | Path, seed: int = 0):
     observations = observe(states)
     policy = Policy(observations.shape[-1], env.action_size, config.hidden_size, policy_key)
     optimizer = optax.chain(optax.clip_by_global_norm(config.max_grad_norm),
-                           optax.adam(config.learning_rate, eps=1e-5))
+                           optax.adam(training.learning_rate, eps=1e-5))
     optimizer_state = optimizer.init(eqx.filter(policy, eqx.is_inexact_array))
 
     @eqx.filter_jit
@@ -177,9 +179,11 @@ def train(env: Any, config: PPOConfig, output: str | Path, seed: int = 0):
                                                     "episode_return_mean", "loss", "actor_loss",
                                                     "value_loss", "entropy", "approx_kl", "grad_norm"])
         writer.writeheader()
-        for iteration in range(1, config.updates + 1):
+        total_updates = (training.steps + config.num_envs * config.rollout_steps - 1) // (config.num_envs * config.rollout_steps)
+        for iteration in range(1, total_updates + 1):
             rollout = []
-            for _ in range(config.rollout_steps):
+            rollout_steps = min(config.rollout_steps, (training.steps - transitions) // config.num_envs)
+            for _ in range(rollout_steps):
                 key, sample_key = jax.random.split(key)
                 actions, raw, logprob, value = _sample(policy, observations, sample_key)
                 next_states = step(states, actions)
@@ -211,7 +215,7 @@ def train(env: Any, config: PPOConfig, output: str | Path, seed: int = 0):
             update_metrics = []
             for _ in range(config.epochs):
                 key, shuffle_key = jax.random.split(key)
-                order = jax.random.permutation(shuffle_key, config.num_envs * config.rollout_steps)
+                order = jax.random.permutation(shuffle_key, config.num_envs * rollout_steps)
                 for offset in range(0, len(order), config.minibatch_size):
                     indices = order[offset:offset + config.minibatch_size]
                     policy, optimizer_state, metrics = update(policy, optimizer_state,
@@ -220,7 +224,8 @@ def train(env: Any, config: PPOConfig, output: str | Path, seed: int = 0):
             metrics = np.mean(update_metrics, axis=0)
             if not np.isfinite(metrics).all():
                 raise FloatingPointError(f"Nonfinite PPO update {iteration}: {metrics}")
-            transitions += config.num_envs * config.rollout_steps
+            previous_transitions = transitions
+            transitions += config.num_envs * rollout_steps
             record: dict[str, Any] = dict(zip(("loss", "actor_loss", "value_loss", "entropy", "approx_kl", "grad_norm"),
                               map(float, metrics), strict=True))
             record.update(update=iteration, steps=transitions, reward_mean=float(jnp.mean(rewards)),
@@ -229,11 +234,11 @@ def train(env: Any, config: PPOConfig, output: str | Path, seed: int = 0):
             writer.writerow(record)
             stream.flush()
             records.append(record)
-            print(f"PPO {iteration}/{config.updates}: steps={transitions} loss={record['loss']:.4f}", flush=True)
-            if iteration % config.checkpoint_every == 0 or iteration == config.updates:
-                _save(policy, output / "checkpoints" / f"update-{iteration:06d}.eqx", transitions, config)
-                _save(policy, output / "policy.eqx", transitions, config)
-    summary = {"algorithm": "ppo", "steps": transitions, "updates": config.updates,
+            print(f"PPO {iteration}/{total_updates}: steps={transitions} loss={record['loss']:.4f}", flush=True)
+            if training.checkpoint_due(previous_transitions, transitions) or transitions == training.steps:
+                _save(policy, output / "checkpoints" / f"step-{transitions:08d}.eqx", transitions, config, training)
+                _save(policy, output / "policy.eqx", transitions, config, training)
+    summary = {"algorithm": "ppo", "steps": transitions, "updates": total_updates,
                "episodes": len(completed_returns), "last": records[-1]}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary

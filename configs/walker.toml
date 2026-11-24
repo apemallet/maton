@@ -23,18 +23,20 @@ gap_frequency = 0.1
 gap_height = 0.15
 gap_width = 0.3
 
+[training]
+# Actual environment transitions, summed over parallel environments.
+steps = 256
+learning_rate = 0.0001
+checkpoint_every = 64
+
 [ppo]
-updates = 4
 num_envs = 2
 rollout_steps = 32
 epochs = 2
 minibatch_size = 32
 hidden_size = 64
-learning_rate = 0.0003
-checkpoint_every = 1
 
 [dreamer]
-steps = 128
 batch_size = 1
 batch_length = 8
 train_every = 16
@@ -44,6 +46,4 @@ deter = 64
 stoch = 4
 classes = 4
 imag_length = 5
-learning_rate = 0.0001
-checkpoint_every = 64
 platform = "cpu"

@@ -5,8 +5,9 @@ Uses Danijar Hafner's upstream DreamerV3 model and Embodied replay, pinned to
 The local harness collects vector observations, samples replay sequences, and
 trains the upstream world model, imagination policy, and value function.
 
-- Defaults: one environment, 128 decisions, 8-step sequences, 64 recurrent units.
-- `[dreamer]` in root `configs/` controls budget, replay, network size, device.
+- Defaults: one environment, 256 transitions, 8-step sequences, 64 recurrent units.
+- `[training]` controls transition budget, learning rate, and checkpoint interval.
+- `[dreamer]` controls replay, network size, and device.
 - `metrics.jsonl`: update losses and completed episode returns. Upstream returns
   training metrics one update asynchronously behind the update counter.
 - `dreamer.pkl`: final checkpoint; `dreamer-XXXXXXXX.pkl`: periodic snapshots.

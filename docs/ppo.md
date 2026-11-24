@@ -6,6 +6,9 @@
 - Entropy regularization uses the underlying Gaussian entropy.
 - Defaults are a stability smoke run (256 transitions), not a locomotion training budget.
 
+`[training]` sets the transition budget, learning rate, and checkpoint interval.
+PPO saves at completed rollout updates; numbered filenames use transition counts.
+
 Training writes `metrics.csv`, `summary.json`, `policy.eqx`, and numbered inference
 snapshots in `checkpoints/`. Every snapshot has JSON model metadata.
 `load_policy(path)` accepts a run directory or a snapshot; `action(policy, obs)`

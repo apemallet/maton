@@ -13,12 +13,13 @@ from typing import Any
 import jax
 import numpy as np
 
+from maton.training import TrainingConfig
+
 UPSTREAM_COMMIT = "e01491fad6434b2245a3b8ca201dd7faedcc458c"
 
 
 @dataclass(frozen=True)
 class DreamerConfig:
-    steps: int = 128
     batch_size: int = 1
     batch_length: int = 8
     train_every: int = 16
@@ -28,20 +29,16 @@ class DreamerConfig:
     stoch: int = 4
     classes: int = 4
     imag_length: int = 5
-    learning_rate: float = 0.0001
-    checkpoint_every: int = 64
     platform: str = "cpu"
 
     def __post_init__(self):
-        for name in ("steps", "batch_size", "batch_length", "train_every", "replay_size", "hidden", "deter", "stoch", "classes", "imag_length", "checkpoint_every"):
+        for name in ("batch_size", "batch_length", "train_every", "replay_size", "hidden", "deter", "stoch", "classes", "imag_length"):
             if getattr(self, name) < 1:
                 raise ValueError(f"dreamer.{name} must be positive")
         if self.batch_length < 2 or self.replay_size < self.batch_length * self.batch_size:
             raise ValueError("Dreamer needs batch_length >= 2 and enough replay capacity")
         if self.deter % 4 or self.hidden % 4:
             raise ValueError("Dreamer deter and hidden must be divisible by 4 RSSM blocks")
-        if not np.isfinite(self.learning_rate) or self.learning_rate <= 0:
-            raise ValueError("dreamer.learning_rate must be positive")
 
 
 class _JaxCompat:
@@ -75,7 +72,7 @@ def _runtime() -> tuple[Any, Any, Any]:
     return elements, embodied, Agent
 
 
-def agent_config(config: DreamerConfig, output: Path, seed: int):
+def agent_config(config: DreamerConfig, training: TrainingConfig, output: Path, seed: int):
     elements, _, _ = _runtime()
     from ruamel.yaml import YAML
     defaults = YAML(typ="safe").load(files("maton").joinpath("assets/dreamer_defaults.yaml").read_text())["defaults"]
@@ -98,7 +95,7 @@ def agent_config(config: DreamerConfig, output: Path, seed: int):
         "agent.enc.simple.layers": 1, "agent.dec.simple.layers": 1,
         "agent.policy.layers": 1, "agent.value.layers": 1,
         "agent.imag_length": config.imag_length,
-        "agent.opt.lr": config.learning_rate, "agent.opt.warmup": 0,
+        "agent.opt.lr": training.learning_rate, "agent.opt.warmup": 0,
         "agent.report": False,
     })
     return elements.Config(**cfg.agent, logdir=cfg.logdir, seed=cfg.seed, jax=cfg.jax,
@@ -121,12 +118,13 @@ def _observation(vector, *, reward=0.0, first=False, last=False, terminal=False)
             "is_terminal": np.asarray(terminal)}
 
 
-def _save(agent, path: Path, config: DreamerConfig, obs_size: int, action_size: int, seed: int, step: int):
+def _save(agent, path: Path, config: DreamerConfig, training: TrainingConfig, obs_size: int, action_size: int, seed: int, step: int):
     agent_state = agent.save()
     for name, value in agent_state["params"].items():
         if not np.isfinite(np.asarray(value)).all():
             raise FloatingPointError(f"Nonfinite Dreamer checkpoint parameter {name}")
     payload = {"agent": agent_state, "config": asdict(config), "obs_size": obs_size,
+               "training": asdict(training),
                "action_size": action_size, "seed": seed, "step": step,
                "upstream_commit": UPSTREAM_COMMIT}
     temporary = path.with_suffix(".tmp")
@@ -165,14 +163,15 @@ def load_policy(checkpoint: Path | str) -> DreamerPolicy:
     if payload["upstream_commit"] != UPSTREAM_COMMIT:
         raise ValueError("Checkpoint belongs to another DreamerV3 revision")
     config = DreamerConfig(**payload["config"])
+    training = TrainingConfig(**payload["training"])
     _, _, Agent = _runtime()
     obs, act = _spaces(payload["obs_size"], payload["action_size"])
-    agent = Agent(obs, act, agent_config(config, checkpoint.parent, payload["seed"]))
+    agent = Agent(obs, act, agent_config(config, training, checkpoint.parent, payload["seed"]))
     agent.load(payload["agent"])
     return DreamerPolicy(agent)
 
 
-def train(env: Any, config: DreamerConfig, output: Path, seed: int = 0):
+def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Path, seed: int = 0):
     """Collect MJX transitions and optimize upstream world model and actor/value."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
@@ -184,7 +183,7 @@ def train(env: Any, config: DreamerConfig, output: Path, seed: int = 0):
     state = reset_fn(reset_key)
     vector = np.asarray(observation_fn(state), np.float32)
     obs_space, act_space = _spaces(vector.size, 4)
-    agent = Agent(obs_space, act_space, agent_config(config, output, seed))
+    agent = Agent(obs_space, act_space, agent_config(config, training, output, seed))
     replay = embodied.Replay(length=config.batch_length, capacity=config.replay_size, seed=seed)
     stream = embodied.streams.Consec(
         embodied.streams.Stateless(lambda: replay.sample(config.batch_size)),
@@ -197,7 +196,8 @@ def train(env: Any, config: DreamerConfig, output: Path, seed: int = 0):
     step_fn = jax.jit(env.step)
     metrics_file = output / "metrics.jsonl"
     with metrics_file.open("w") as metrics:
-        for step in range(1, config.steps + 1):
+        step = 0
+        while step < training.steps:
             policy_carry, actions, extras = agent.policy(
                 policy_carry, {k: v[None] for k, v in obs.items()}, mode="train")
             action = np.asarray(actions["action"][0], np.float32)
@@ -207,8 +207,10 @@ def train(env: Any, config: DreamerConfig, output: Path, seed: int = 0):
                 key, reset_key = jax.random.split(key)
                 state = reset_fn(reset_key)
                 obs = _observation(observation_fn(state), first=True)
+                continue  # Replay needs episode boundaries; these are not env transitions.
             else:
                 state = step_fn(state, action)
+                step += 1
                 obs = _observation(observation_fn(state), reward=state.reward,
                                    last=state.done, terminal=state.terminated)
                 episode_return += float(state.reward)
@@ -228,10 +230,10 @@ def train(env: Any, config: DreamerConfig, output: Path, seed: int = 0):
                         record[name] = float(array)
                 metrics.write(json.dumps(record) + "\n")
                 metrics.flush()
-            if step % config.checkpoint_every == 0:
-                _save(agent, output / f"dreamer-{step:08d}.pkl", config, vector.size, 4, seed, step)
-        _save(agent, output / "dreamer.pkl", config, vector.size, 4, seed, config.steps)
-    summary = {"steps": config.steps, "updates": updates, "episodes": episodes,
+            if training.checkpoint_due(step - 1, step):
+                _save(agent, output / f"dreamer-{step:08d}.pkl", config, training, vector.size, 4, seed, step)
+        _save(agent, output / "dreamer.pkl", config, training, vector.size, 4, seed, training.steps)
+    summary = {"steps": training.steps, "updates": updates, "episodes": episodes,
                "checkpoint": str(output / "dreamer.pkl"), "upstream_commit": UPSTREAM_COMMIT}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary

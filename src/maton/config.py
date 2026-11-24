@@ -10,6 +10,7 @@ from typing import Any
 @dataclass
 class Config:
     seed: int = 0
+    training: dict[str, Any] = field(default_factory=dict)
     env: dict[str, Any] = field(default_factory=dict)
     terrain: dict[str, Any] = field(default_factory=dict)
     ppo: dict[str, Any] = field(default_factory=dict)
@@ -19,7 +20,7 @@ class Config:
     def load(cls, path: str | Path) -> "Config":
         with Path(path).open("rb") as handle:
             values = tomllib.load(handle)
-        unknown = values.keys() - {"seed", "env", "terrain", "ppo", "dreamer"}
+        unknown = values.keys() - {"seed", "training", "env", "terrain", "ppo", "dreamer"}
         if unknown:
             raise ValueError(f"Unknown config sections: {sorted(unknown)}")
         config = cls(**values)
@@ -31,10 +32,13 @@ class Config:
         from maton.terrain import TerrainConfig
         from maton.ppo import PPOConfig
         from maton.dreamer import DreamerConfig
+        from maton.training import TrainingConfig
 
-        return dict(seed=self.seed, env=asdict(EnvConfig(**self.env)),
+        training = TrainingConfig(**self.training)
+        ppo = PPOConfig(**self.ppo)
+        return dict(seed=self.seed, training=asdict(training), env=asdict(EnvConfig(**self.env)),
                     terrain=asdict(TerrainConfig(**self.terrain)),
-                    ppo=asdict(PPOConfig(**self.ppo)),
+                    ppo=asdict(ppo),
                     dreamer=asdict(DreamerConfig(**self.dreamer)))
 
     def environment(self):

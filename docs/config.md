@@ -50,54 +50,63 @@ their configured maxima. Terrain is resampled on each episode reset.
 produces flat floor. Gaps have bottoms and vertical sides. Course length forward
 from the start is `start_length + slots * spacing`.
 
+## `[training]`: shared trainer settings
+
+| Option | Default | Meaning / constraints |
+| --- | --- | --- |
+| `steps` | `256` | Total actual environment transitions; positive integer. PPO requires divisibility by `ppo.num_envs`. |
+| `learning_rate` | `0.0001` | Finite positive optimizer learning rate for either agent. |
+| `checkpoint_every` | `64` | Checkpoint interval in actual environment transitions; positive integer. Final weights are always saved. |
+
+One transition is one action held for `env.frame_skip` physics steps. Counts sum
+across PPO environments; Dreamer reset bookkeeping does not consume the budget.
+PPO shortens its final rollout to meet the budget exactly, allowing a smaller
+final minibatch. Checkpoints are written after an update crosses an interval
+threshold; PPO may save later than the threshold by up to one rollout. Filenames
+and checkpoint metadata record the actual transition count. Multiple thresholds
+crossed in one update produce one snapshot.
+
 ## `[ppo]`: baseline trainer
 
-| Option                | Default  | Meaning / constraints                                                                                          |
-| --------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
-| `updates`             | `4`      | Number of rollout-and-optimization iterations; positive integer.                                               |
-| `num_envs`            | `2`      | Batched MJX environments collecting transitions; positive integer.                                             |
-| `rollout_steps`       | `32`     | Actions collected per environment per iteration; positive integer.                                             |
-| `epochs`              | `2`      | Optimization passes through each collected batch; positive integer.                                            |
-| `minibatch_size`      | `32`     | Samples per optimizer step; positive integer dividing `num_envs * rollout_steps`.                              |
-| `hidden_size`         | `64`     | Width of each of the actor's and critic's two hidden layers; positive integer.                                 |
-| `learning_rate`       | `0.0003` | Adam learning rate; positive.                                                                                  |
-| `gamma`               | `0.99`   | Reward discount per action; `[0, 1]`.                                                                          |
-| `gae_lambda`          | `0.95`   | Generalized advantage estimation trace factor; `[0, 1]`. Larger values use longer traces.                      |
-| `clip_ratio`          | `0.2`    | Positive PPO probability-ratio clipping radius around one.                                                     |
-| `value_coefficient`   | `0.5`    | Weight of critic mean squared error in the loss; use nonnegative values.                                       |
-| `entropy_coefficient` | `0.001`  | Weight of the exploration bonus using pre-tanh Gaussian entropy; use nonnegative values.                       |
-| `max_grad_norm`       | `0.5`    | Positive global gradient-norm clipping threshold.                                                              |
-| `checkpoint_every`    | `1`      | Save a numbered snapshot every this many rollout iterations; positive integer. Final weights are always saved. |
+| Option | Default | Meaning / constraints |
+| --- | --- | --- |
+| `num_envs` | `2` | Batched MJX environments collecting transitions; positive integer. |
+| `rollout_steps` | `32` | Maximum actions per environment per rollout/update; positive integer. |
+| `epochs` | `2` | Optimization passes through each collected batch; positive integer. |
+| `minibatch_size` | `32` | Samples per optimizer step; positive integer dividing a full `num_envs * rollout_steps` batch. |
+| `hidden_size` | `64` | Width of the actor's and critic's two hidden layers; positive integer. |
+| `gamma` | `0.99` | Reward discount per action; `[0, 1]`. |
+| `gae_lambda` | `0.95` | Advantage trace factor; `[0, 1]`. Larger values use longer traces. |
+| `clip_ratio` | `0.2` | Positive probability-ratio clipping radius around one. |
+| `value_coefficient` | `0.5` | Critic loss weight; use nonnegative values. |
+| `entropy_coefficient` | `0.001` | Pre-tanh Gaussian entropy bonus weight; use nonnegative values. |
+| `max_grad_norm` | `0.5` | Positive global gradient-norm clipping threshold. |
 
-Total transitions: `updates * num_envs * rollout_steps`. Optimizer steps per
-iteration: `epochs * num_envs * rollout_steps / minibatch_size`. Time limits
-bootstrap the critic; true terminations do not. See [PPO details](ppo.md).
+Rollout updates: `ceil(training.steps / (num_envs * rollout_steps))`. Optimizer
+steps per full rollout: `epochs * num_envs * rollout_steps / minibatch_size`.
+Time limits bootstrap the critic; true terminations do not. See [PPO](ppo.md).
 
 ## `[dreamer]`: upstream DreamerV3 trainer
 
-The harness uses one MJX environment and trains the upstream world model,
-imagination policy, and value function. Only the options below are exposed;
-other upstream settings come from the bundled, pinned defaults.
+One MJX environment trains the upstream world model, imagination policy, and
+value function. Unexposed upstream settings use the bundled, pinned defaults.
 
-| Option             | Default  | Meaning / constraints                                                                                                                   |
-| ------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `steps`            | `128`    | Collection-loop decisions; positive integer. Includes reset-boundary decisions, so physical actions can be fewer.                       |
-| `batch_size`       | `1`      | Replay sequences sampled per training update; positive integer.                                                                         |
-| `batch_length`     | `8`      | Transitions per sampled sequence; integer at least two.                                                                                 |
-| `train_every`      | `16`     | Collection decisions between optimizer updates once replay has enough sequences; positive integer.                                      |
-| `replay_size`      | `2048`   | Replay transition capacity; integer at least `batch_size * batch_length`.                                                               |
-| `hidden`           | `32`     | RSSM hidden width and shared width setting for encoder, decoder, and prediction/policy/value heads; positive integer divisible by four. |
-| `deter`            | `64`     | Deterministic recurrent state size in the RSSM world model; positive integer divisible by four.                                         |
-| `stoch`            | `4`      | Number of categorical stochastic latent variables; positive integer.                                                                    |
-| `classes`          | `4`      | Categories per stochastic latent variable; positive integer.                                                                            |
-| `imag_length`      | `5`      | Imagined rollout horizon for policy/value training; positive integer.                                                                   |
-| `learning_rate`    | `0.0001` | Upstream agent optimizer learning rate; finite and positive.                                                                            |
-| `checkpoint_every` | `64`     | Save a numbered checkpoint every this many collection decisions; positive integer. Final weights are always saved.                      |
-| `platform`         | `"cpu"`  | JAX platform used by the Dreamer agent, typically `"cpu"` or `"gpu"`; requested hardware must be available.                             |
+| Option | Default | Meaning / constraints |
+| --- | --- | --- |
+| `batch_size` | `1` | Replay sequences per training update; positive integer. |
+| `batch_length` | `8` | Replay records per sampled sequence, including episode boundaries; integer at least two. |
+| `train_every` | `16` | Actual environment transitions between updates once replay has enough sequences; positive integer. |
+| `replay_size` | `2048` | Replay record capacity; at least `batch_size * batch_length`. |
+| `hidden` | `32` | RSSM/encoder/decoder/head width; positive integer divisible by four. |
+| `deter` | `64` | Deterministic recurrent state size; positive integer divisible by four. |
+| `stoch` | `4` | Categorical stochastic latent variables; positive integer. |
+| `classes` | `4` | Categories per latent variable; positive integer. |
+| `imag_length` | `5` | Imagined rollout horizon; positive integer. |
+| `platform` | `"cpu"` | Dreamer JAX platform, typically `"cpu"` or `"gpu"`; hardware must be available. |
 
-Larger batches, sequences, latent states, and imagination horizons increase
+Larger batches, sequences, latent states, and imagination horizons cost more
 memory and computation. `platform` configures Dreamer; MJX uses JAX's default
-device selection. See [Dreamer integration details](dreamer.md).
+device selection. See [Dreamer integration](dreamer.md).
 
 ## CLI options outside TOML
 

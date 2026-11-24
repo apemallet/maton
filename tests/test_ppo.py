@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from maton.ppo import PPOConfig, Policy, action, advantages, load_policy, log_probability, train
+from maton.training import TrainingConfig
 
 
 def test_advantages_bootstrap_timeout_but_stop_at_reset():
@@ -49,21 +50,38 @@ class ToyEnv:
 
 
 def test_training_updates_and_checkpoint_roundtrip(tmp_path):
-    config = PPOConfig(updates=2, num_envs=2, rollout_steps=4, epochs=1,
+    config = PPOConfig(num_envs=2, rollout_steps=4, epochs=1,
                        minibatch_size=4, hidden_size=8)
-    result = train(ToyEnv(), config, tmp_path, seed=12)
+    training = TrainingConfig(steps=16, checkpoint_every=8)
+    result = train(ToyEnv(), config, training, tmp_path, seed=12)
     assert result['steps'] == 16
     assert result['episodes'] >= 2
     assert result['last']['grad_norm'] > 0
     assert np.isfinite(list(result['last'].values())).all()
     loaded = load_policy(tmp_path)
-    checkpoint = load_policy(tmp_path / 'checkpoints/update-000002.eqx')
+    checkpoint = load_policy(tmp_path / 'checkpoints/step-00000016.eqx')
     np.testing.assert_array_equal(action(loaded, jnp.ones(2)), action(checkpoint, jnp.ones(2)))
     key = jax.random.PRNGKey(12)
     _, _, policy_key = jax.random.split(key, 3)
     initial = Policy(2, 1, 8, policy_key)
     assert not np.array_equal(initial.actor.layers[0].weight, loaded.actor.layers[0].weight)
     assert json.loads((tmp_path / 'policy.json').read_text())['step'] == 16
+
+
+def test_exact_partial_rollout_budget_and_crossed_checkpoint_thresholds(tmp_path):
+    config = PPOConfig(num_envs=2, rollout_steps=4, epochs=1,
+                       minibatch_size=4, hidden_size=8)
+    result = train(ToyEnv(), config, TrainingConfig(steps=18, checkpoint_every=5), tmp_path)
+    assert result['steps'] == 18
+    assert result['updates'] == 3
+    assert sorted(p.name for p in (tmp_path / 'checkpoints').glob('*.eqx')) == [
+        'step-00000008.eqx', 'step-00000016.eqx', 'step-00000018.eqx']
+    assert json.loads((tmp_path / 'policy.json').read_text())['training']['steps'] == 18
+
+
+def test_budget_must_fit_parallel_environment_count(tmp_path):
+    with pytest.raises(ValueError, match='divisible'):
+        train(ToyEnv(), PPOConfig(), TrainingConfig(steps=3), tmp_path)
 
 
 def test_config_rejects_partial_minibatch():

@@ -1,6 +1,6 @@
 # Initial CPU checks
 
-Using `configs/walker.toml`, seed 0:
+Original `configs/walker.toml`, seed 0, before shared `[training]` settings:
 
 | Agent | Budget | Updates | Result |
 | --- | --- | --- | --- |

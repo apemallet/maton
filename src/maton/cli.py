@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from maton.config import Config, load_run, save_run
+from maton.training import TrainingConfig
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -32,12 +33,13 @@ def main(argv: list[str] | None = None) -> None:
             config.seed = args.seed
         env = config.environment()
         save_run(config, args.algorithm, args.output)
+        training = TrainingConfig(**config.training)
         if args.algorithm == "ppo":
             from maton.ppo import PPOConfig, train as train_ppo
-            result = train_ppo(env, PPOConfig(**config.ppo), args.output, config.seed)
+            result = train_ppo(env, PPOConfig(**config.ppo), training, args.output, config.seed)
         else:
             from maton.dreamer import DreamerConfig, train as train_dreamer
-            result = train_dreamer(env, DreamerConfig(**config.dreamer), args.output, config.seed)
+            result = train_dreamer(env, DreamerConfig(**config.dreamer), training, args.output, config.seed)
         print(json.dumps(result, indent=2))
     elif args.command == "rollout":
         from maton.replay import record

@@ -19,7 +19,7 @@ just train dreamer data/dreamer-dev
 # Evaluate a saved checkpoint and render its trajectory.
 just rollout data/ppo-dev data/ppo-eval
 just render data/ppo-eval/episode-0000
-uv run maton rollout data/ppo-dev --checkpoint data/ppo-dev/checkpoints/update-000002.eqx \
+uv run maton rollout data/ppo-dev --checkpoint data/ppo-dev/checkpoints/step-00000128.eqx \
   --output data/ppo-checkpoint-eval --episodes 3 --seed 2000
 ```
 
