@@ -27,6 +27,8 @@ Edit [configs/walker.toml](configs/walker.toml) for course difficulty, sensors,
 simulation, network sizes, and training budgets. [configs/smoke.toml](configs/smoke.toml)
 uses one terrain slot and minimal updates. Dreamer defaults to CPU; set
 `dreamer.platform = "gpu"` for a GPU run.
+See the [configuration reference](docs/config.md) for every option,
+default, unit, and constraint.
 
 Runs live in `data/` and retain resolved configuration, metrics, and numbered
 checkpoints. Evaluation stores exact physics trajectories and the sampled course
