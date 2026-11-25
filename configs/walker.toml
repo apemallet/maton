@@ -16,6 +16,7 @@ control_mode = "position"
 upright_reward = 0.1
 finish_reward = 25.0
 foot_length = 0.16
+friction = 1.6
 hip_target_min = -0.8
 hip_target_max = 0.8
 hip_target_neutral = 0.0

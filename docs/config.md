@@ -31,6 +31,8 @@ is the walking training job; `configs/smoke.toml` checks integration cheaply.
 | `hip_target_neutral` / `knee_target_neutral` | unset | Zero-action target; defaults to range midpoint. Positive/negative actions interpolate separately to upper/lower bounds. |
 | `foot_length` | `0.0` | Foot capsule centreline length in metres, `[0, 0.5]`; zero preserves spherical feet. Total footprint extends another 0.075 m at each end. |
 | `finish_reward` | `0.0` | Nonnegative bonus paid once for upright course completion. |
+| `angle_harmonics` | `2` | Fourier harmonics `K` for angle and angular-rate observations; observation size is `20K + 4 + lidar_count`. Positive integer. |
+| `friction` | `0.9` | MuJoCo sliding friction of every geom (contact uses the larger of the pair); positive, below 10. |
 | `upright_reward` | `0.0` | Optional posture reward per simulated second; nonnegative. |
 
 Position mode maps negative/positive actions from the neutral target toward the lower/upper limit.

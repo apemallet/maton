@@ -1,3 +1,4 @@
+import dataclasses
 import jax
 import equinox as eqx
 import jax.numpy as jnp
@@ -138,14 +139,17 @@ def test_upright_potential_loses_progress_on_fall_and_restores_on_recovery(env):
     assert float(upright_env.potential(rolled)) == pytest.approx(20)
 
 
-def test_upright_progress_adds_position_observation_and_step_rewards_telescope(env):
+def test_observation_is_fourier_encoded_and_progress_mode_independent_and_step_rewards_telescope(env):
     upright_env = WalkerEnv(EnvConfig(progress_mode='upright', control_cost=0), env.terrain_config)
     state = jax.jit(env.reset)(jax.random.key(0))
-    assert env.observation_size == 29
-    assert upright_env.observation_size == 30
-    assert env.observation(state).shape == (29,)
-    assert upright_env.observation(state).shape == (30,)
-    assert float(upright_env.observation(state)[-1]) == pytest.approx(float(state.data.qpos[0]) / env.terrain_config.length)
+    assert env.observation_size == upright_env.observation_size == 20 * 2 + 4 + 9
+    assert env.observation(state).shape == (env.observation_size,)
+    np.testing.assert_allclose(env.observation(state), upright_env.observation(state))
+    wide = WalkerEnv(EnvConfig(angle_harmonics=3), env.terrain_config)
+    assert wide.observation_size == 20 * 3 + 4 + 9
+    # Pitch wrap-around is invisible to the encoding.
+    turned = dataclasses.replace(state, data=state.data.replace(qpos=state.data.qpos.at[2].add(2 * jnp.pi)))
+    np.testing.assert_allclose(env.observation(turned)[:4], env.observation(state)[:4], atol=1e-5)
     initial_potential = float(upright_env.potential(state.data))
     total = 0
     step = jax.jit(upright_env.step)

@@ -7,9 +7,11 @@
   `foot_length=0` preserves the original spherical feet.
 - Default 100 Hz physics, two steps per action. Upright course completion and leaving the backward
   course boundary terminate; episode time limits truncate. Falls may recover.
-- Nine normalized lidar rays, torso height/orientation, four joint angles,
-  seven velocities, two foot contacts, and previous actions: 29 floats.
-  Upright progress mode adds normalized course position as a 30th value.
+- Observation (`20K + 4 + lidar` floats, `K = angle_harmonics`; 53 by default): sin/cos at harmonics
+  1..K of absolute torso pitch and the four parent-relative joint angles; the same Fourier
+  features of each angular rate times the action period (angle change per action); world-frame
+  root x/z velocity; two foot contacts; nine normalized lidar rays. No height, course
+  position, or previous action. Fourier angles are wrap-free.
 - Lidar intersects the same terrain boxes used by MJX. Rays rotate with the torso,
   spanning straight down to 15° above forward.
 

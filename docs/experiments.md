@@ -34,6 +34,32 @@ seeds (`rollout --level 1`). Shared env: position control, `progress_scale=20`,
 | Dreamer | same as 1e-4 row, `episode_length=512` | 0 | 0/10 — upright but ~0.09 m/s, too slow |
 | Dreamer | `deter=64`, `stoch=classes=16`, 512 | 0 | 0/10 — falls backward |
 
+Friction / motors (512 steps, Dreamer seed 0, 393k):
+
+| Change | Level-1 finishes |
+| --- | --- |
+| `friction=1.6` | 10/10 |
+| `torque_limit=40, kp=60, kd=4` | 4/10 |
+| both | 0/10 |
+
+Seed check of `friction=1.6` from `walker.toml` (524k steps):
+
+| Trainer | Seeds 0 / 1 / 2 |
+| --- | --- |
+| PPO | 10/10, 0/10, 0/10 |
+| Dreamer | 10/10 (scratch run), 0/10, 0/10 |
+
+`friction=2.5` / `4.0` (seed 1): 0/10 for PPO and Dreamer. Results so far are
+seed-0 specific; judge changes on at least three seeds.
+
+Fourier observation (`angle_harmonics=2`; no height, course position, or previous
+action), `walker.toml` as committed (512 steps, `friction=1.6`), 524k steps:
+
+| Trainer | Seeds 0 / 1 / 2 |
+| --- | --- |
+| PPO | 0/10, 0/10, 0/10 (falls; 8–22% upright) |
+| Dreamer | 10/10 (finishes in ~154 steps), 0/10, 0/10 (upright but slow, 1.4 / 2.8 m) |
+
 Open issue: PPO needs `episode_length=512`; Dreamer needs ≈800. Falls never
 terminate, so fallen walkers waste most of a long episode. `configs/walker.toml`
 currently uses 512 (PPO passes; Dreamer does not).

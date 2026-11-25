@@ -1,8 +1,8 @@
 # Maton
 
 A planar, four-motor MJX biped learning procedural obstacle courses with upstream
-DreamerV3 or an Equinox PPO baseline. Observations combine lidar, joint/torso
-kinematics, previous actions, and foot contacts.
+DreamerV3 or an Equinox PPO baseline. Observations combine lidar, Fourier-encoded
+joint/torso angles and rates, root velocity, and foot contacts.
 
 ```sh
 uv sync

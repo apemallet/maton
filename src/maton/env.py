@@ -37,6 +37,8 @@ class EnvConfig:
     upright_reward: float = 0.0
     foot_length: float = 0.0
     finish_reward: float = 0.0
+    friction: float = 0.9
+    angle_harmonics: int = 2
 
     def __post_init__(self):
         if self.timestep <= 0 or self.frame_skip < 1 or self.episode_length < 1:
@@ -49,6 +51,10 @@ class EnvConfig:
             raise ValueError("Progress scale must be positive; control cost nonnegative")
         if not 0 <= self.foot_length <= 0.5:
             raise ValueError("foot_length must be between 0 and 0.5 metres")
+        if type(self.angle_harmonics) is not int or self.angle_harmonics < 1:
+            raise ValueError("angle_harmonics must be a positive integer")
+        if not 0 < self.friction < 10:
+            raise ValueError("friction must be positive and below 10")
         if self.finish_reward < 0:
             raise ValueError("finish_reward must be nonnegative")
         if self.control_mode not in ("torque", "position"):
@@ -108,7 +114,7 @@ def _xml(config: EnvConfig, terrain: TerrainConfig, rect: np.ndarray | None = No
     return f'''<mujoco model="planar_walker">
     <compiler angle="degree"/>
     <option timestep="{config.timestep}" gravity="0 0 -9.81" solver="CG" iterations="6" ls_iterations="4" integrator="Euler"/>
-    <default><joint damping="0.5" armature="0.02"/><geom friction="0.9 0.01 0.001" contype="2" conaffinity="1" condim="3" solref="0.02 1"/></default>
+    <default><joint damping="0.5" armature="0.02"/><geom friction="{config.friction} 0.01 0.001" contype="2" conaffinity="1" condim="3" solref="0.02 1"/></default>
     <visual><global offwidth="960" offheight="540"/></visual>
     <worldbody><light pos="0 -3 6"/>{floor}
     <body name="torso" pos="0 0 1.0">
@@ -131,7 +137,7 @@ class WalkerEnv:
         self.curriculum = curriculum or CurriculumConfig((Level("course", 1, terrain),))
         self.terrain_config = terrain = self.curriculum.levels[0].terrain
         self._floor_bottom = -max(1.0, max(x.terrain.gap_height for x in self.curriculum.levels) + 0.5)
-        self.observation_size = 20 + config.lidar_count + (config.progress_mode == "upright")
+        self.observation_size = 20 * config.angle_harmonics + 4 + config.lidar_count
         self.model = mujoco.MjModel.from_xml_string(_xml(config, terrain))  # pyright: ignore[reportAttributeAccessIssue]
         self.mjx_model = mjx.put_model(self.model)
         self._data = mjx.make_data(self.mjx_model)
@@ -225,13 +231,21 @@ class WalkerEnv:
         distances = jnp.where(far >= near, near, self.config.lidar_range)
         return jnp.clip(distances.min(-1), 0, self.config.lidar_range) / self.config.lidar_range
 
+    def fourier(self, angle: Array) -> Array:
+        """sin/cos at harmonics 1..K of each angle: smooth, wrap-free, [..., 2K]."""
+        phase = angle[..., None] * jnp.arange(1, self.config.angle_harmonics + 1)
+        return jnp.concatenate((jnp.sin(phase), jnp.cos(phase)), -1)
+
     def observation(self, state: State) -> Array:
+        """Absolute pitch and joint angles (parent-relative) as Fourier features; angular
+        rates as Fourier features of the angle change per action; world-frame root velocity,
+        foot contacts, lidar. No height, course position, or previous action."""
         qpos, qvel = state.data.qpos, state.data.qvel
-        observation = jnp.concatenate((jnp.array([1.0 + qpos[1], jnp.sin(qpos[2]), jnp.cos(qpos[2])]),
-                                       qpos[3:], jnp.clip(qvel, -20, 20),
-                                       jnp.tanh(state.data.sensordata / 100.0), state.action, self.lidar(state)))
-        if self.config.progress_mode == "upright":
-            observation = jnp.concatenate((observation, jnp.array([qpos[0] / self.terrain_config.length])))
+        dt = self.config.timestep * self.config.frame_skip
+        angles = self.fourier(qpos[2:]).ravel()
+        steps = self.fourier(jnp.clip(qvel[2:], -20, 20) * dt).ravel()
+        observation = jnp.concatenate((angles, steps, jnp.clip(qvel[:2], -20, 20) / 5.0,
+                                       jnp.tanh(state.data.sensordata / 100.0), self.lidar(state)))
         return observation.astype(jnp.float32)
 
     def cpu_model(self, state: State) -> mujoco.MjModel:  # pyright: ignore[reportAttributeAccessIssue]
