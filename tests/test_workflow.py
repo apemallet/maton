@@ -1,0 +1,93 @@
+"""Exercise Snakemake's DAG and rerun policy with cheap stand-in builders."""
+
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+import pytest
+
+
+@pytest.fixture
+def workflow(tmp_path):
+    shutil.copy('Snakefile', tmp_path)
+    shutil.copy('uv.lock', tmp_path)
+    shutil.copytree('configs', tmp_path / 'configs')
+    shutil.copytree('profiles', tmp_path / 'profiles')
+    # Source dependencies must exist; copy rather than modify the checkout.
+    shutil.copytree('src', tmp_path / 'src', ignore=shutil.ignore_patterns('__pycache__'))
+    binary = tmp_path / 'bin'
+    binary.mkdir()
+    runner = binary / 'uv'
+    runner.write_text(f'#!{sys.executable}\n' + '''
+import json
+from pathlib import Path
+import sys
+from maton.jobs import Job, fingerprint
+
+stage = sys.argv[5]
+args = dict(zip(sys.argv[6::2], sys.argv[7::2]))
+output = Path(args['--output'])
+if stage == 'train':
+    job = Job.load(args['--config'])
+    output.mkdir(parents=True)
+    (output / 'provenance.json').write_text(json.dumps({'training_fingerprint': fingerprint(job.training_spec())}))
+elif stage == 'evaluate':
+    output.mkdir(parents=True)
+    (output / 'summary.json').write_text('{}')
+else:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text('stand-in artifact')
+''')
+    runner.chmod(0o755)
+    environment = dict(os.environ, PATH=f'{binary}{os.pathsep}{os.environ["PATH"]}',
+                       XDG_CACHE_HOME=str(tmp_path / 'cache'))
+    environment.pop('PYTHONPATH', None)
+
+    def run(*args, success=True):
+        result = subprocess.run([sys.executable, '-m', 'snakemake', '--cores', '1', *args],
+                                cwd=tmp_path, env=environment, capture_output=True, text=True)
+        output = result.stdout + result.stderr
+        if success:
+            assert result.returncode == 0, output
+        else:
+            assert result.returncode != 0, output
+        return output
+
+    return tmp_path, run
+
+
+def test_dag_and_stage_invalidation(workflow):
+    root, run = workflow
+    first = run()
+    assert 'localrule train:' in first and 'localrule evaluate:' in first and 'localrule render:' in first
+    assert 'Nothing to be done' in run('-n')
+    path = root / 'configs/jobs/smoke-ppo.toml'
+    path.write_text(path.read_text().replace('render = [0]', 'render = []'))
+    assert 'Nothing to be done' in run('-n')
+    path.write_text(path.read_text().replace('episodes = 1', 'episodes = 2'))
+    planned = run('-n')
+    assert 'rule evaluate:' in planned and 'rule train:' not in planned
+    run()
+    # Requesting an additional video uses existing trajectories only.
+    planned = run('data/jobs/smoke-ppo/render/level-1/episode-0001.mp4', '-n')
+    assert 'rule render:' in planned and 'rule evaluate:' not in planned and 'rule train:' not in planned
+    run('data/jobs/smoke-ppo/render/level-1/episode-0002.mp4', '-n', success=False)
+    # Configuration identity survives loss of local Snakemake metadata.
+    shutil.rmtree(root / '.snakemake')
+    path.write_text(path.read_text().replace('steps = 16', 'steps = 32'))
+    assert 'new job name' in run('-n', success=False)
+
+
+def test_protected_training_and_preview_target(workflow):
+    root, run = workflow
+    run('data/jobs/smoke-ppo/train')
+    assert 'protected' in run('data/jobs/smoke-ppo/train', '--forcerun', 'train', success=False).lower()
+    source = root / 'src/maton/ppo.py'
+    source.write_text(source.read_text() + '\n# changed training implementation\n')
+    assert 'protected' in run('data/jobs/smoke-ppo/train', '-n', success=False).lower()
+    preview = 'data/walkers/quadruped/neutral.png'
+    run(preview)
+    assert (root / preview).is_file()
+    assert 'Nothing to be done' in run(preview, '-n')

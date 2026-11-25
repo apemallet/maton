@@ -1,3 +1,8 @@
+# Historical experiments
+
+Paths below refer to pre-workflow runs and their original configuration names.
+New runs use [named jobs](workflow.md).
+
 # Initial CPU checks
 
 Original `configs/walker.toml`, seed 0, before shared `[training]` settings:

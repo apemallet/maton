@@ -1,0 +1,5 @@
+# Conservative local defaults; executor-specific profiles can override these.
+cores: 1
+resources:
+  training_slots: 1
+printshellcmds: true

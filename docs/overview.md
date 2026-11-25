@@ -35,7 +35,7 @@ Falls never terminate an episode.
 
 # Checkpoints and inspection
 
-`maton train --algorithm {ppo,dreamer} --config configs/walker.toml --output data/RUN`
+`maton train --config configs/jobs/biped-ppo-s0.toml --output data/RUN`
 saves resolved settings in `run.json`. Outputs must be new directories.
 PPO checkpoints hold inference weights; Dreamer holds agent/optimizer state.
 Neither harness currently resumes training/replay from an existing run.

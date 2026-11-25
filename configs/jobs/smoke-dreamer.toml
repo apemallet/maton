@@ -1,0 +1,31 @@
+algorithm = "dreamer"
+seed = 0
+walker = "../walkers/basic.toml"
+curriculum = "../curricula/walker.toml"
+
+[env]
+frame_skip = 1
+episode_length = 16
+
+[training]
+# Actual environment transitions, summed over parallel environments.
+steps = 16
+learning_rate = 0.0001
+checkpoint_every = 8
+
+[dreamer]
+batch_size = 1
+batch_length = 4
+train_every = 8
+hidden = 16
+deter = 16
+stoch = 2
+classes = 2
+imag_length = 2
+
+[evaluations.level-1]
+checkpoint = "final"
+level = 1
+seed = 1000
+episodes = 1
+render = [0]

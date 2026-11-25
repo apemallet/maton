@@ -4,7 +4,7 @@
 - Clipped PPO, GAE, Adam, gradient clipping; normalized batch advantages.
 - True terminations stop value bootstrap. Time limits bootstrap from the final observation; both stop the GAE trace.
 - Entropy regularization uses the underlying Gaussian entropy; `initial_std` sets initial exploration around the actor mean.
-- `configs/basic.toml` is a smoke job; `configs/walker.toml` uses a larger walking budget.
+- `configs/jobs/smoke-ppo.toml` checks integration; `biped-ppo-s0.toml` uses a larger walking budget.
 
 `[training]` sets the transition budget, learning rate, and checkpoint interval.
 PPO saves at completed rollout updates; numbered filenames use transition counts.

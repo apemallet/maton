@@ -1,15 +1,17 @@
 # Configuration reference
 
-`configs/basic.toml` preserves the original small job. `configs/walker.toml`
-is the walking training job; `configs/smoke.toml` checks integration cheaply.
+Jobs live in `configs/jobs/`: `basic-{ppo,dreamer}-s0` preserves the original small
+job; `biped-{ppo,dreamer}-s0` trains walking; `smoke-{ppo,dreamer}` checks integration.
+See [workflow](workflow.md) for names, artifact paths, evaluations, and rebuild policy.
 
 ## Root
 
 | Option | Default | Meaning                                                                                                  |
 | ------ | ------- | -------------------------------------------------------------------------------------------------------- |
+| `algorithm` | required | `ppo` or `dreamer`; include only that trainer’s table. |
 | `walker` | required | Walker TOML path, relative to the job TOML. Resolved structure is embedded in `run.json`; see [walker structure](walker.md). |
 | `curriculum` | required | Curriculum TOML path, relative to the job TOML. Resolved levels are embedded in `run.json`. |
-| `seed` | `0`     | Integer seed for policy initialization, sampling, and training courses. CLI `train --seed` overrides it. |
+| `seed` | `0`     | Nonnegative integer seed for policy initialization, sampling, and training courses. |
 
 ## `[env]`: physics, observations, reward
 
@@ -143,14 +145,17 @@ Larger batches, sequences, latent states, and imagination horizons cost more
 memory and computation. `platform` configures Dreamer; MJX uses JAX's default
 device selection. See [Dreamer integration](dreamer.md).
 
-## CLI options outside TOML
+## Low-level CLI
+
+Snakemake calls these commands. Use workflow targets for managed artifacts;
+CLI output directories must be new. Evaluation settings belong in job TOML
+for managed runs.
+
 
 | Command   | Option         | Default / purpose                                                               |
 | --------- | -------------- | ------------------------------------------------------------------------------- |
-| `train`   | `--algorithm`  | `ppo`; choose `ppo` or `dreamer`.                                               |
-| `train`   | `--config`     | `configs/walker.toml`; input TOML path.                                         |
+| `train`   | `--config`     | Required job TOML path; algorithm and seed come from this file.                                         |
 | `train`   | `--output`     | Required; new run directory.                                                    |
-| `train`   | `--seed`       | Optional override of root `seed`.                                               |
 | `rollout` | `run`          | Required positional run directory containing `run.json`.                        |
 | `rollout` | `--checkpoint` | Optional specific snapshot; otherwise final run weights.                        |
 | `rollout` | `--output`     | Required evaluation directory; each episode subdirectory must be new.           |

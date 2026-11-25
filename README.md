@@ -8,40 +8,28 @@ joint/torso angles and rates, root velocity, and foot contacts.
 uv sync
 just test
 
-# Tiny integration checks; choose fresh output directories.
-just smoke ppo data/ppo-smoke
-just smoke dreamer data/dreamer-smoke
+# Default: PPO smoke training → held-out evaluation → video.
+just smoke
+just job smoke-dreamer
 
-# Preview a walker structure (PNG, no training).
-just view-walker configs/walkers/quadruped.toml
-
-# Walking training job.
-just train ppo data/ppo-dev
-just train dreamer data/dreamer-dev
-
-# Evaluate a saved checkpoint and render its trajectory.
-just rollout data/ppo-dev data/ppo-eval
-just render data/ppo-eval/episode-0000
-uv run maton rollout data/ppo-dev --checkpoint data/ppo-dev/checkpoints/step-00000128.eqx \
-  --output data/ppo-checkpoint-eval --episodes 3 --seed 2000
+# Build the full experiment, or request one asset and its dependencies.
+just job biped-ppo-s0
+just build data/jobs/biped-ppo-s0/render/level-1/episode-0000.mp4 -n
+just view-walker quadruped neutral
 ```
 
-Edit [configs/walker.toml](configs/walker.toml) for course difficulty, sensors,
-simulation, network sizes, and training budgets. Jobs reference the separate
-[six-level curriculum](configs/curricula/walker.toml) and a [walker structure](docs/walker.md).
-Walker TOMLs define body layouts, geometry, joints, and motors; biped and quadruped
-examples are included. Training starts with flat walking;
-see [advancement rules](docs/curriculum.md). The original small torque-control job
-is preserved in [configs/basic.toml](configs/basic.toml).
-[configs/smoke.toml](configs/smoke.toml) uses minimal updates. Dreamer defaults to CPU; set
-`dreamer.platform = "gpu"` for a GPU run.
-See the [configuration reference](docs/config.md) for every option,
-default, unit, and constraint.
+Experiments live in [configs/jobs](configs/jobs). A job selects an algorithm,
+seed, [walker](docs/walker.md), [curriculum](docs/curriculum.md), training settings,
+and named evaluations. Dreamer defaults to CPU; set `dreamer.platform = "gpu"`
+for a GPU job.
 
-Runs live in `data/` and retain resolved configuration, metrics, and numbered
-checkpoints. Evaluation stores exact physics trajectories and the sampled course
-as MuJoCo XML, plus a summary of success rate and upright time; videos can be rebuilt without loading the agent. Training is an
-explicit CLI/just recipe, not a Snakemake artifact.
+Snakemake owns all generated artifacts under `data/`. Completed training is
+protected; changed experiments receive new job names. Evaluations save exact
+physics trajectories, sampled course XML, and summary metrics. Videos rebuild
+from those trajectories without loading a policy.
+
+See [workflow and naming](docs/workflow.md) for targets, rebuild policy, and
+execution profiles; [configuration](docs/config.md) lists model and environment options.
 
 See [environment and replay](docs/overview.md), [DreamerV3](docs/dreamer.md), and
 [PPO](docs/ppo.md).

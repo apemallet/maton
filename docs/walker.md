@@ -11,12 +11,12 @@ Preview a structure without training or a display server:
 
 ```sh
 just view-walker                              # default biped
-just view-walker configs/walkers/quadruped.toml
-just view-walker configs/walkers/basic.toml --neutral --output data/basic.png
+just view-walker quadruped
+just view-walker basic neutral
 ```
 
-Saves `data/walkers/<name>.png` with side/front/top views, numbered joints, and a
-joint-name key. Default pose has zero joint angles; `--neutral` uses motor neutral
+Snakemake saves `data/walkers/<name>/<pose>.png` with side/front/top views, numbered joints, and a
+joint-name key. Default pose `zero` has zero joint angles; `neutral` uses motor neutral
 targets, leaving passive joints at zero. CLI: `uv run maton view-walker FILE [--neutral] [--output PNG]`.
 
 Structures are assembled into MuJoCo bodies, joints, motors, and touch sensors.

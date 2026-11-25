@@ -7,24 +7,24 @@ install:
 
 alias t := test
 test *args:
-	just typecheck && echo ''
+	just typecheck
 	uv run pytest {{args}}
 
 typecheck path='src':
 	uv run basedpyright {{path}}
 
-train algorithm='ppo' output='data/ppo-dev' config='configs/walker.toml':
-	uv run maton train --algorithm {{algorithm}} --config {{config}} --output {{output}}
+# Build the job's training, named evaluations, and selected videos.
+job name='smoke-ppo' *args:
+	uv run snakemake --config job={{name}} {{args}}
 
-smoke algorithm='ppo' output='data/ppo-smoke':
-	uv run maton train --algorithm {{algorithm}} --config configs/smoke.toml --output {{output}}
+# Build any artifact by its canonical path. Extra args include -n and --cores.
+build target *args:
+	uv run snakemake {{target}} {{args}}
 
-rollout run output seed='1000':
-	uv run maton rollout {{run}} --output {{output}} --seed {{seed}}
+smoke *args:
+	uv run snakemake {{args}}
 
-render episode:
-	uv run maton render {{episode}}
-
-# Preview the assembled structure; extra args: --neutral, --output PATH.
-view-walker config *args:
-	open $(uv run maton view-walker "{{config}}" {{args}})
+# Preview a walker through the workflow, then open its PNG.
+view-walker walker='biped' pose='zero':
+	uv run snakemake data/walkers/{{walker}}/{{pose}}.png
+	open data/walkers/{{walker}}/{{pose}}.png

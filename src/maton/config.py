@@ -3,7 +3,6 @@
 from dataclasses import asdict, dataclass, field
 import json
 from pathlib import Path
-import tomllib
 from typing import Any
 
 from maton.walker import WalkerConfig, default_walker
@@ -22,11 +21,12 @@ class Config:
 
     @classmethod
     def load(cls, path: str | Path) -> "Config":
-        with Path(path).open("rb") as handle:
-            values = tomllib.load(handle)
-        unknown = values.keys() - {"seed", "training", "env", "walker", "curriculum", "ppo", "dreamer"}
-        if unknown:
-            raise ValueError(f"Unknown config sections: {sorted(unknown)}")
+        from maton.jobs import Job
+        return Job.load(path).config()
+
+    @classmethod
+    def from_values(cls, settings: dict[str, Any], path: Path) -> "Config":
+        values = dict(settings)
         walker_reference = values.get("walker")
         if not isinstance(walker_reference, str):
             raise ValueError("Job TOML must reference a walker file")

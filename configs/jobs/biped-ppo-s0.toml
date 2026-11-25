@@ -1,0 +1,43 @@
+algorithm = "ppo"
+# Walking training job. The original small torque jobs use basic-*.toml.
+seed = 0
+walker = "../walkers/biped.toml"
+curriculum = "../curricula/walker.toml"
+
+[env]
+timestep = 0.01
+frame_skip = 4
+episode_length = 512
+lidar_count = 9
+lidar_range = 3.0
+reset_noise = 0.01
+progress_scale = 20.0
+progress_mode = "upright"
+control_cost = 0.0001
+control_mode = "position"
+upright_reward = 0.1
+finish_reward = 25.0
+friction = 1.6
+
+[training]
+# Actual environment transitions, summed over parallel environments.
+steps = 524_288
+learning_rate = 0.0003
+checkpoint_every = 8_192
+
+[ppo]
+num_envs = 16
+rollout_steps = 128
+epochs = 4
+minibatch_size = 256
+hidden_size = 64
+initial_std = 0.2
+gamma = 0.99
+entropy_coefficient = 0.0
+
+[evaluations.level-1]
+checkpoint = "final"
+level = 1
+seed = 1000
+episodes = 10
+render = [0]

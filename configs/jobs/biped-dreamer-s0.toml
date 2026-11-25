@@ -1,7 +1,8 @@
-# Walking training job. The original small torque job is basic.toml.
+algorithm = "dreamer"
+# Walking training job. The original small torque jobs use basic-*.toml.
 seed = 0
-walker = "walkers/biped.toml"
-curriculum = "curricula/walker.toml"
+walker = "../walkers/biped.toml"
+curriculum = "../curricula/walker.toml"
 
 [env]
 timestep = 0.01
@@ -24,16 +25,6 @@ steps = 524_288
 learning_rate = 0.0003
 checkpoint_every = 8_192
 
-[ppo]
-num_envs = 16
-rollout_steps = 128
-epochs = 4
-minibatch_size = 256
-hidden_size = 64
-initial_std = 0.2
-gamma = 0.99
-entropy_coefficient = 0.0
-
 [dreamer]
 batch_size = 4
 batch_length = 16
@@ -49,3 +40,10 @@ policy_maxstd = 0.3
 optimizer_warmup = 1000
 learning_rate = 1e-4  # overrides [training]; upstream default is 4e-5
 platform = "cpu"
+
+[evaluations.level-1]
+checkpoint = "final"
+level = 1
+seed = 1000
+episodes = 10
+render = [0]

@@ -4,7 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
-from maton.config import Config, load_run, save_run
+from maton.config import load_run, save_run
+from maton.jobs import Job
 from maton.training import TrainingConfig
 
 
@@ -12,10 +13,8 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Planar MJX obstacle walker")
     commands = parser.add_subparsers(dest="command", required=True)
     train = commands.add_parser("train", help="Train a small PPO or DreamerV3 agent")
-    train.add_argument("--algorithm", choices=("ppo", "dreamer"), default="ppo")
-    train.add_argument("--config", type=Path, default=Path("configs/walker.toml"))
+    train.add_argument("--config", type=Path, required=True)
     train.add_argument("--output", type=Path, required=True)
-    train.add_argument("--seed", type=int)
     rollout = commands.add_parser("rollout", help="Evaluate a saved checkpoint on fresh courses")
     rollout.add_argument("run", type=Path)
     rollout.add_argument("--checkpoint", type=Path)
@@ -33,13 +32,12 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.command == "train":
-        config = Config.load(args.config)
-        if args.seed is not None:
-            config.seed = args.seed
+        job = Job.load(args.config)
+        config = job.config()
         env = config.environment()
-        save_run(config, args.algorithm, args.output)
+        save_run(config, job.algorithm, args.output)
         training = TrainingConfig(**config.training)
-        if args.algorithm == "ppo":
+        if job.algorithm == "ppo":
             from maton.ppo import PPOConfig, train as train_ppo
             result = train_ppo(env, PPOConfig(**config.ppo), training, args.output, config.seed)
         else:
