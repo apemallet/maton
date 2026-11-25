@@ -208,7 +208,7 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
     observation_fn = jax.jit(env.observation)
     state = reset_fn(reset_key, curriculum.level)
     vector = np.asarray(observation_fn(state), np.float32)
-    obs_space, act_space = _spaces(vector.size, 4)
+    obs_space, act_space = _spaces(vector.size, env.action_size)
     agent = Agent(obs_space, act_space, agent_config(config, training, output, seed))
     replay = embodied.Replay(length=config.batch_length, capacity=config.replay_size, seed=seed)
     stream = embodied.streams.Consec(
@@ -260,8 +260,8 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
                 metrics.write(json.dumps(record) + "\n")
                 metrics.flush()
             if training.checkpoint_due(step - 1, step):
-                _save(agent, output / f"dreamer-{step:08d}.pkl", config, training, vector.size, 4, seed, step, curriculum)
-        _save(agent, output / "dreamer.pkl", config, training, vector.size, 4, seed, training.steps, curriculum)
+                _save(agent, output / f"dreamer-{step:08d}.pkl", config, training, vector.size, env.action_size, seed, step, curriculum)
+        _save(agent, output / "dreamer.pkl", config, training, vector.size, env.action_size, seed, training.steps, curriculum)
     summary = {"steps": training.steps, "updates": updates, "episodes": episodes,
                "checkpoint": str(output / "dreamer.pkl"), "upstream_commit": UPSTREAM_COMMIT,
                "curriculum": curriculum.snapshot()}

@@ -1,0 +1,167 @@
+# Metres, kilograms, radians. Body positions are relative to parents.
+name = "quadruped"
+spawn_height = 1.0
+
+[[bodies]]
+name = "torso"
+[[bodies.geoms]]
+type = "capsule"
+fromto = [-0.3, 0, 0, 0.3, 0, 0]
+size = [0.09]
+mass = 3.0
+
+[[bodies]]
+name = "thigh_front_left"
+parent = "torso"
+pos = [0.22, -0.11, -0.15]
+[bodies.joint]
+name = "hip_front_left"
+range = [-1.3962634015954636, 1.3962634015954636]
+[bodies.joint.motor]
+target_range = [-0.8, 0.8]
+neutral = 0.0
+[[bodies.geoms]]
+type = "capsule"
+fromto = [0, 0, 0, 0, 0, -0.35]
+size = [0.045]
+mass = 0.8
+
+[[bodies]]
+name = "shin_front_left"
+parent = "thigh_front_left"
+pos = [0, 0, -0.35]
+[bodies.joint]
+name = "knee_front_left"
+range = [-0.08726646259971647, 2.181661564992912]
+[bodies.joint.motor]
+target_range = [-0.08, 1.3]
+neutral = 0.0
+[[bodies.geoms]]
+type = "capsule"
+fromto = [0, 0, 0, 0, 0, -0.35]
+size = [0.035]
+mass = 0.5
+
+[[bodies.geoms]]
+type = "capsule"
+fromto = [-0.08, 0, -0.35, 0.08, 0, -0.35]
+size = [0.075]
+mass = 0.15
+contact = true
+
+[[bodies]]
+name = "thigh_front_right"
+parent = "torso"
+pos = [0.22, 0.11, -0.15]
+[bodies.joint]
+name = "hip_front_right"
+range = [-1.3962634015954636, 1.3962634015954636]
+[bodies.joint.motor]
+target_range = [-0.8, 0.8]
+neutral = 0.0
+[[bodies.geoms]]
+type = "capsule"
+fromto = [0, 0, 0, 0, 0, -0.35]
+size = [0.045]
+mass = 0.8
+
+[[bodies]]
+name = "shin_front_right"
+parent = "thigh_front_right"
+pos = [0, 0, -0.35]
+[bodies.joint]
+name = "knee_front_right"
+range = [-0.08726646259971647, 2.181661564992912]
+[bodies.joint.motor]
+target_range = [-0.08, 1.3]
+neutral = 0.0
+[[bodies.geoms]]
+type = "capsule"
+fromto = [0, 0, 0, 0, 0, -0.35]
+size = [0.035]
+mass = 0.5
+
+[[bodies.geoms]]
+type = "capsule"
+fromto = [-0.08, 0, -0.35, 0.08, 0, -0.35]
+size = [0.075]
+mass = 0.15
+contact = true
+
+[[bodies]]
+name = "thigh_rear_left"
+parent = "torso"
+pos = [-0.22, -0.11, -0.15]
+[bodies.joint]
+name = "hip_rear_left"
+range = [-1.3962634015954636, 1.3962634015954636]
+[bodies.joint.motor]
+target_range = [-0.8, 0.8]
+neutral = 0.0
+[[bodies.geoms]]
+type = "capsule"
+fromto = [0, 0, 0, 0, 0, -0.35]
+size = [0.045]
+mass = 0.8
+
+[[bodies]]
+name = "shin_rear_left"
+parent = "thigh_rear_left"
+pos = [0, 0, -0.35]
+[bodies.joint]
+name = "knee_rear_left"
+range = [-0.08726646259971647, 2.181661564992912]
+[bodies.joint.motor]
+target_range = [-0.08, 1.3]
+neutral = 0.0
+[[bodies.geoms]]
+type = "capsule"
+fromto = [0, 0, 0, 0, 0, -0.35]
+size = [0.035]
+mass = 0.5
+
+[[bodies.geoms]]
+type = "capsule"
+fromto = [-0.08, 0, -0.35, 0.08, 0, -0.35]
+size = [0.075]
+mass = 0.15
+contact = true
+
+[[bodies]]
+name = "thigh_rear_right"
+parent = "torso"
+pos = [-0.22, 0.11, -0.15]
+[bodies.joint]
+name = "hip_rear_right"
+range = [-1.3962634015954636, 1.3962634015954636]
+[bodies.joint.motor]
+target_range = [-0.8, 0.8]
+neutral = 0.0
+[[bodies.geoms]]
+type = "capsule"
+fromto = [0, 0, 0, 0, 0, -0.35]
+size = [0.045]
+mass = 0.8
+
+[[bodies]]
+name = "shin_rear_right"
+parent = "thigh_rear_right"
+pos = [0, 0, -0.35]
+[bodies.joint]
+name = "knee_rear_right"
+range = [-0.08726646259971647, 2.181661564992912]
+[bodies.joint.motor]
+target_range = [-0.08, 1.3]
+neutral = 0.0
+[[bodies.geoms]]
+type = "capsule"
+fromto = [0, 0, 0, 0, 0, -0.35]
+size = [0.035]
+mass = 0.5
+
+[[bodies.geoms]]
+type = "capsule"
+fromto = [-0.08, 0, -0.35, 0.08, 0, -0.35]
+size = [0.075]
+mass = 0.15
+contact = true

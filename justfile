@@ -24,3 +24,7 @@ rollout run output seed='1000':
 
 render episode:
 	uv run maton render {{episode}}
+
+# Preview the assembled structure; extra args: --neutral, --output PATH.
+view-walker config *args:
+	open $(uv run maton view-walker "{{config}}" {{args}})

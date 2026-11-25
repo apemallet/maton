@@ -1,4 +1,5 @@
 seed = 0
+walker = "walkers/basic.toml"
 curriculum = "curricula/walker.toml"
 
 [env]

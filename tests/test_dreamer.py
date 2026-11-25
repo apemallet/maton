@@ -50,8 +50,8 @@ def test_budget_and_checkpoint_units_exclude_episode_reset_bookkeeping(tmp_path,
     elements, embodied, _ = dreamer._runtime()
 
     class Agent:
-        def __init__(self, *args):
-            pass
+        def __init__(self, obs_space, act_space, config):
+            assert act_space['action'].shape == (2,)
 
         def init_train(self, size):
             return None
@@ -63,7 +63,7 @@ def test_budget_and_checkpoint_units_exclude_episode_reset_bookkeeping(tmp_path,
             return stream
 
         def policy(self, carry, obs, mode):
-            return carry, {'action': np.zeros((1, 4), np.float32)}, {}
+            return carry, {'action': np.zeros((1, 2), np.float32)}, {}
 
         def train(self, carry, batch):
             return carry, {}, {'loss': np.array(1.)}
@@ -80,6 +80,7 @@ def test_budget_and_checkpoint_units_exclude_episode_reset_bookkeeping(tmp_path,
         success: object
 
     class Env:
+        action_size = 2
         flat = TerrainConfig(block_frequency=0, gap_frequency=0)
         curriculum = CurriculumConfig((Level("one", 2, flat), Level("two", 2, flat)))
 
@@ -107,6 +108,7 @@ def test_budget_and_checkpoint_units_exclude_episode_reset_bookkeeping(tmp_path,
     import pickle
     with (tmp_path / 'dreamer.pkl').open('rb') as handle:
         payload = pickle.load(handle)
+    assert payload['action_size'] == 2
     assert payload['step'] == 8
     assert payload['training']['checkpoint_every'] == 3
     assert payload['curriculum']['level'] == 1

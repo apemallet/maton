@@ -1,16 +1,16 @@
 # Walker and course
 
-- Planar root translation/pitch; two hips and two knees, four capped torque motors.
+- Planar root translation/pitch with a TOML-defined body tree, hinges, and capped motors.
+  Jobs select a [walker structure](walker.md); examples include bipeds and a quadruped.
 - Actions command torque directly or joint targets with per-physics-step PD control.
   The walking job uses position control; see [motor settings](config.md).
-- Optional short capsule feet widen the support footprint without extra joints;
-  `foot_length=0` preserves the original spherical feet.
+- Geometry supports spheres, capsules, and boxes; contact sensing is optional per geom.
 - Default 100 Hz physics, two steps per action. Upright course completion and leaving the backward
   course boundary terminate; episode time limits truncate. Falls may recover.
-- Observation (`20K + 4 + lidar` floats, `K = angle_harmonics`; 53 by default): sin/cos at harmonics
-  1..K of absolute torso pitch and the four parent-relative joint angles; the same Fourier
+- Observation (`4 * (1 + hinges) * K + 2 + contacts + lidar` floats; 53 for the default biped): sin/cos at harmonics
+  1..K of absolute torso pitch and all parent-relative hinge angles; the same Fourier
   features of each angular rate times the action period (angle change per action); world-frame
-  root x/z velocity; two foot contacts; nine normalized lidar rays. No height, course
+  root x/z velocity; configured contacts; nine normalized lidar rays. No height, course
   position, or previous action. Fourier angles are wrap-free.
 - Lidar intersects the same terrain boxes used by MJX. Rays rotate with the torso,
   spanning straight down to 15° above forward.

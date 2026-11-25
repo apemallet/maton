@@ -1,5 +1,6 @@
 # Tiny development run; increase budgets only after inspecting saved episodes.
 seed = 0
+walker = "walkers/basic.toml"
 curriculum = "curricula/walker.toml"
 
 [env]

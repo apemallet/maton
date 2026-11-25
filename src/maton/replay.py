@@ -24,8 +24,8 @@ def record(env: Any, policy: Callable, output: Path, seed: int, level: int = 0) 
     for _ in range(env.config.episode_length):
         obs = np.asarray(observe(state))
         control = np.asarray(policy(obs), dtype=np.float32)
-        if control.shape != (4,) or not np.isfinite(control).all():
-            raise ValueError("Policy must return four finite motor actions")
+        if control.shape != (env.action_size,) or not np.isfinite(control).all():
+            raise ValueError(f"Policy must return {env.action_size} finite motor actions")
         state = step(state, control)
         observations.append(obs)
         actions.append(control)
@@ -49,7 +49,7 @@ def record(env: Any, policy: Callable, output: Path, seed: int, level: int = 0) 
                    terminated=bool(state.terminated), truncated=bool(state.truncated),
                    dt=env.config.timestep * env.config.frame_skip)
     poses = np.asarray(positions)
-    summary["upright_fraction"] = float(np.mean((poses[:, 1] + 1.0 >= 0.5) &
+    summary["upright_fraction"] = float(np.mean((poses[:, 1] + env.walker.spawn_height >= 0.5 * env.walker.spawn_height) &
                                                 (np.cos(poses[:, 2]) >= np.cos(1.4))))
     (output / "episode.json").write_text(json.dumps(summary, indent=2) + "\n")
     return output
@@ -78,14 +78,13 @@ def render_episode(episode: Path, output: Path | None = None) -> Path:
     import imageio.v2 as imageio
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
-    from matplotlib.patches import Circle, Polygon
+    from maton.rendering import draw_model
 
     output = output or episode / "episode.mp4"
     output.parent.mkdir(parents=True, exist_ok=True)
     # MuJoCo's compiled bindings are missing exports in its Python type metadata.
     model = mujoco.MjModel.from_xml_path(str(episode / "model.xml"))  # pyright: ignore[reportAttributeAccessIssue]
     data = mujoco.MjData(model)  # pyright: ignore[reportAttributeAccessIssue]
-    geom_types = mujoco.mjtGeom  # pyright: ignore[reportAttributeAccessIssue]
     with np.load(episode / "trajectory.npz") as saved:
         positions, velocities = saved["qpos"], saved["qvel"]
         rewards = saved["rewards"]
@@ -103,28 +102,7 @@ def render_episode(episode: Path, output: Path | None = None) -> Path:
             axes.set(xlim=(center - 3, center + 4), ylim=(-1.4, 2.4),
                      xlabel="distance (m)", ylabel="height (m)", aspect="equal")
             axes.set_facecolor("#eef3f7")
-            for geom in range(model.ngeom):
-                # Python ints avoid NumPy/pybind enum membership comparisons.
-                kind = int(model.geom_type[geom])
-                pos = data.geom_xpos[geom][[0, 2]]
-                matrix = data.geom_xmat[geom].reshape(3, 3)
-                size = model.geom_size[geom]
-                color = model.geom_rgba[geom]
-                if kind == geom_types.mjGEOM_BOX:
-                    corners = np.array([[-1, -1], [1, -1], [1, 1], [-1, 1]]) * size[[0, 2]]
-                    corners = corners @ matrix[np.ix_([0, 2], [0, 2])].T + pos
-                    axes.add_patch(Polygon(corners, color=color))
-                elif kind in (geom_types.mjGEOM_CAPSULE, geom_types.mjGEOM_CYLINDER):
-                    direction = matrix[[0, 2], 2] * size[1]
-                    perpendicular = np.array([-direction[1], direction[0]])
-                    perpendicular = perpendicular / max(np.linalg.norm(perpendicular), 1e-8) * size[0]
-                    corners = np.array([pos - direction - perpendicular, pos + direction - perpendicular,
-                                        pos + direction + perpendicular, pos - direction + perpendicular])
-                    axes.add_patch(Polygon(corners, color=color))
-                    for endpoint in (pos - direction, pos + direction):
-                        axes.add_patch(Circle(endpoint, size[0], color=color))
-                elif kind == geom_types.mjGEOM_SPHERE:
-                    axes.add_patch(Circle(pos, size[0], color=color))
+            draw_model(model, data, axes)
             score = float(np.sum(rewards[:index]))
             axes.set_title(f"t={index * dt:.2f}s   x={qpos[0]:.2f}m   return={score:.3f}")
             canvas.draw()

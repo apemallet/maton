@@ -8,6 +8,7 @@ import pytest
 
 from maton.env import EnvConfig, WalkerEnv
 from maton.terrain import TerrainConfig
+from maton.walker import WalkerConfig
 
 
 @pytest.fixture(scope='module')
@@ -75,9 +76,7 @@ def test_cpu_model_has_correct_collision_bvh_away_from_origin(env):
     assert data.ncon > 0
 
 
-@pytest.mark.parametrize('kwargs', [dict(control_mode='bad'), dict(torque_limit=0),
-                                    dict(position_kd=-1), dict(hip_target_min=-2),
-                                    dict(knee_target_max=3), dict(upright_reward=-1)])
+@pytest.mark.parametrize('kwargs', [dict(control_mode='bad'), dict(upright_reward=-1)])
 def test_invalid_motor_settings(kwargs):
     with pytest.raises(ValueError):
         EnvConfig(**kwargs)
@@ -102,11 +101,9 @@ def test_fallen_beyond_finish_gets_no_runoff_reward(env):
 
 
 def test_capsule_foot_neutral_stance_and_target_endpoints():
-    cfg = EnvConfig(control_mode='position', foot_length=.16, reset_noise=0,
-                    hip_target_min=-.8, hip_target_max=.8, hip_target_neutral=0,
-                    knee_target_min=-.08, knee_target_max=1.3, knee_target_neutral=0,
-                    finish_reward=25)
-    env = WalkerEnv(cfg, TerrainConfig(slots=1))
+    cfg = EnvConfig(control_mode='position', reset_noise=0, finish_reward=25)
+    walker = WalkerConfig.load('configs/walkers/biped.toml')
+    env = WalkerEnv(cfg, TerrainConfig(slots=1), walker=walker)
     state = jax.jit(env.reset)(jax.random.key(0))
     np.testing.assert_allclose(env.motor_control(state.data, jnp.zeros(4)), 0, atol=1e-6)
     model = env.cpu_model(state)

@@ -26,6 +26,10 @@ def main(argv: list[str] | None = None) -> None:
     render = commands.add_parser("render", help="Render a saved episode to MP4")
     render.add_argument("episode", type=Path)
     render.add_argument("--output", type=Path)
+    preview = commands.add_parser("view-walker", help="Save a labeled PNG preview of a walker TOML")
+    preview.add_argument("walker", type=Path)
+    preview.add_argument("--output", type=Path, help="PNG path; default: data/walkers/<walker-name>.png")
+    preview.add_argument("--neutral", action="store_true", help="Pose motor joints at their neutral targets")
     args = parser.parse_args(argv)
 
     if args.command == "train":
@@ -66,6 +70,9 @@ def main(argv: list[str] | None = None) -> None:
                 act.reset()
             episodes.append(record(env, act, args.output / f"episode-{index:04d}", args.seed + index, level))
         print(json.dumps(summarize_episodes(episodes, args.output / "summary.json"), indent=2))
+    elif args.command == "view-walker":
+        from maton.preview import preview_walker
+        print(preview_walker(args.walker, args.output, neutral=args.neutral))
     else:
         from maton.replay import render_episode
         print(render_episode(args.episode, args.output))

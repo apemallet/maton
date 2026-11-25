@@ -1,6 +1,6 @@
 # Maton
 
-A planar, four-motor MJX biped learning procedural obstacle courses with upstream
+Configurable planar MJX walkers learning procedural obstacle courses with upstream
 DreamerV3 or an Equinox PPO baseline. Observations combine lidar, Fourier-encoded
 joint/torso angles and rates, root velocity, and foot contacts.
 
@@ -11,6 +11,9 @@ just test
 # Tiny integration checks; choose fresh output directories.
 just smoke ppo data/ppo-smoke
 just smoke dreamer data/dreamer-smoke
+
+# Preview a walker structure (PNG, no training).
+just view-walker configs/walkers/quadruped.toml
 
 # Walking training job.
 just train ppo data/ppo-dev
@@ -25,7 +28,9 @@ uv run maton rollout data/ppo-dev --checkpoint data/ppo-dev/checkpoints/step-000
 
 Edit [configs/walker.toml](configs/walker.toml) for course difficulty, sensors,
 simulation, network sizes, and training budgets. Jobs reference the separate
-[six-level curriculum](configs/curricula/walker.toml), starting with flat walking;
+[six-level curriculum](configs/curricula/walker.toml) and a [walker structure](docs/walker.md).
+Walker TOMLs define body layouts, geometry, joints, and motors; biped and quadruped
+examples are included. Training starts with flat walking;
 see [advancement rules](docs/curriculum.md). The original small torque-control job
 is preserved in [configs/basic.toml](configs/basic.toml).
 [configs/smoke.toml](configs/smoke.toml) uses minimal updates. Dreamer defaults to CPU; set

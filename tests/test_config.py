@@ -27,7 +27,32 @@ def test_root_configs_and_resolved_snapshot(tmp_path):
                                      "[training]\nsteps=0"])
 def test_reject_bad_config(tmp_path, contents):
     path = tmp_path / "bad.toml"
+    walker = Path("configs/walkers/basic.toml").resolve()
     reference = Path("configs/curricula/walker.toml").resolve()
-    path.write_text(f'curriculum = "{reference}"\n' + contents)
+    path.write_text(f'walker = "{walker}"\ncurriculum = "{reference}"\n' + contents)
     with pytest.raises((ValueError, TypeError)):
         Config.load(path)
+
+
+def test_walker_reference_is_relative_and_snapshot_is_self_contained(tmp_path):
+    source = Path("configs/walkers/quadruped.toml")
+    structure = tmp_path / "structure.toml"
+    structure.write_text(source.read_text())
+    curriculum = Path("configs/curricula/walker.toml").resolve()
+    job = tmp_path / "job.toml"
+    job.write_text(f'walker = "structure.toml"\ncurriculum = "{curriculum}"\n')
+    config = Config.load(job)
+    assert config.environment().action_size == 8
+    output = tmp_path / "run"
+    save_run(config, "ppo", output)
+    structure.unlink()
+    restored, _ = load_run(output)
+    assert restored.resolved() == config.resolved()
+    assert restored.environment().action_size == 8
+
+
+def test_job_requires_walker(tmp_path):
+    job = tmp_path / "job.toml"
+    job.write_text('curriculum = "unused.toml"\n')
+    with pytest.raises(ValueError, match="walker"):
+        Config.load(job)
