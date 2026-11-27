@@ -69,6 +69,25 @@ Open issue: PPO needs `episode_length=512`; Dreamer needs ≈800. Falls never
 terminate, so fallen walkers waste most of a long episode. `configs/walker.toml`
 currently uses 512 (PPO passes; Dreamer does not).
 
+# v2 course
+
+Biped seed 0, 524k transitions, the 8 m v2 course (`*-v2-s0`). Successes over 10
+held-out episodes per level; one video per level under `render/`.
+
+| Trainer | Hardware | Hours | L1 | L2 | L3 | L4 | L5 | L6 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TD-MPC2 | RTX 3080 | 1.39 | 10 | 9 | 4 | 9 | 7 | 6 |
+| Dreamer | CPU | 1.18 | 10 | 10 | 9 | 8 | 0 | 0 |
+| SAC | RTX 3080 | 0.30 | 10 | 10 | 1 | 3 | 3 | 0 |
+| PPO | RTX 3080 | 0.18 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+- TD-MPC2 alone crosses gaps; Dreamer is the most reliable on blocks.
+- SAC stays upright (93–100%) but stalls in front of obstacles (~4.5 m).
+- PPO walks upright at ~0.31 m/s and times out at ~6.5 m: `episode_length = 512`
+  (20.5 s) was kept when the course doubled, requiring ≥ 0.39 m/s. Not a fair PPO result;
+  rerun with a longer `episode_length` under a new job name.
+- `basic-*-v2-s0` (8k transitions) are integration checks: 0/10 everywhere, as expected.
+
 # v1 course baseline (superseded)
 
 Biped seed 0, 524k transitions, the original 4 m course: 3 obstacle slots, no
