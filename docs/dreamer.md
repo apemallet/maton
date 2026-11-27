@@ -10,7 +10,7 @@ trains the upstream world model, imagination policy, and value function.
 - `[dreamer]` controls replay, network size, device, optimizer warmup, and action
   noise bounds. Initial upstream action standard deviation is approximately
   `minstd + 0.881 * (maxstd - minstd)`; it learns within those bounds.
-- `metrics.jsonl`: update losses and completed episode returns. Upstream returns
+- `metrics.jsonl`: update losses (first update, then every 64th) and every completed episode return. Upstream returns
   training metrics one update asynchronously behind the update counter.
 - `dreamer.pkl`: final checkpoint; `dreamer-XXXXXXXX.pkl`: periodic snapshots.
 - Upright course finishes advance the curriculum; falls may recover before timeout.

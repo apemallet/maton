@@ -21,6 +21,7 @@ from maton.training import TrainingConfig
 from maton.curriculum import CurriculumProgress
 
 UPSTREAM_COMMIT = "e01491fad6434b2245a3b8ca201dd7faedcc458c"
+LOG_EVERY_UPDATES = 64  # update-loss rows in metrics.jsonl; every episode is still logged
 
 
 @dataclass(frozen=True)
@@ -293,8 +294,10 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
                         raise FloatingPointError(f"Nonfinite Dreamer metric {name}")
                     if array.ndim == 0 and np.issubdtype(array.dtype, np.number):
                         record[name] = float(array)
-                metrics.write(json.dumps(record) + "\n")
-                metrics.flush()
+                # One row per update would reach ~100 MB per biped run, past GitHub's file limit.
+                if updates == 1 or updates % LOG_EVERY_UPDATES == 0:
+                    metrics.write(json.dumps(record) + "\n")
+                    metrics.flush()
             if training.checkpoint_due(step - 1, step):
                 _save(agent, output / f"dreamer-{step:08d}.pkl", config, training, vector.size, env.action_size, seed, step, curriculum)
                 checkpoint()
