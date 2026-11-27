@@ -123,6 +123,14 @@ class Learner(Protocol):
 MakeLearner = Callable[[Any, int, int, int, TrainingConfig], Learner]
 
 
+def discount(value: float | None, episode_length: int) -> float:
+    """Explicit value, or TD-MPC2's horizon heuristic `clip((L/5 - 1) / (L/5), 0.95, 0.995)`."""
+    if value is not None:
+        return value
+    fraction = episode_length / 5
+    return min(max((fraction - 1) / fraction, 0.95), 0.995)
+
+
 def seed_steps(config: OffPolicyConfig, episode_length: int, steps: int) -> int:
     seeded = config.seed_steps if config.seed_steps is not None else max(1000, 5 * episode_length)
     return min(math.ceil(seeded / config.num_envs) * config.num_envs, steps)

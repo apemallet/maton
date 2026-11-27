@@ -83,13 +83,6 @@ class TDMPC2Config(OffPolicyConfig):
 Config = TDMPC2Config
 
 
-def discount(config: TDMPC2Config, episode_length: int) -> float:
-    if config.discount is not None:
-        return config.discount
-    fraction = episode_length / 5
-    return min(max((fraction - 1) / fraction, 0.95), 0.995)
-
-
 def symlog(x: Array) -> Array:
     return jnp.sign(x) * jnp.log1p(jnp.abs(x))
 
@@ -125,7 +118,7 @@ class TDMPC2:
         self.config = config
         self.observation_size, self.action_size = observation_size, action_size
         self.horizon = config.horizon
-        self.discount = discount(config, episode_length)
+        self.discount = offpolicy.discount(config.discount, episode_length)
         self.iterations = config.iterations + 2 * (action_size >= 20)  # official large-action heuristic
         self.bins = jnp.linspace(config.vmin, config.vmax, config.num_bins)
         clip = optax.clip_by_global_norm(config.grad_clip_norm)

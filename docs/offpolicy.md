@@ -1,7 +1,7 @@
 # Off-policy driver
 
 [`offpolicy.py`](../src/maton/offpolicy.py) trains any learner exposing `init_model`, `init`,
-`init_carry`, `act`, and `update` (see `Learner`). Used by [TD-MPC2](tdmpc2.md).
+`init_carry`, `act`, and `update` (see `Learner`). Used by [TD-MPC2](tdmpc2.md) and [SAC](sac.md).
 
 - `num_envs` batched MJX environments; finished ones reset in place.
 - The first `seed_steps` transitions use uniform random actions. One burst of

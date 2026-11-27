@@ -1,7 +1,7 @@
 # Configuration reference
 
 Jobs live in `configs/jobs/`: `basic-{ppo,dreamer}-s0` preserves the original small
-job; `biped-{ppo,dreamer,tdmpc2}-s0` trains walking; `smoke-*` checks integration.
+job; `biped-{ppo,dreamer,tdmpc2,sac}-s0` trains walking; `smoke-*` checks integration.
 See [workflow](workflow.md) for names, artifact paths, evaluations, and rebuild policy.
 
 ## Root
@@ -147,7 +147,7 @@ device selection. See [Dreamer integration](dreamer.md).
 
 ## Off-policy trainers: shared options
 
-`[tdmpc2]` accepts these, plus its own options below. See the [driver](offpolicy.md).
+`[tdmpc2]` and `[sac]` accept these, plus their own options below. See the [driver](offpolicy.md).
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -168,6 +168,19 @@ Defaults are the official 5M configuration; see [TD-MPC2](tdmpc2.md).
 | Planning | `mpc` true, `horizon` 3, `iterations` 6, `num_samples` 512, `num_elites` 64, `num_pi_trajs` 24, `min_std` 0.05, `max_std` 2, `temperature` 0.5 |
 | Losses | `rho` 0.5, `consistency_coef` 20, `reward_coef` 0.1, `value_coef` 0.1, `termination_coef` 1, `entropy_coef` 1e-4, `log_std_min`/`log_std_max` −10/2 |
 | Optimizer | `[training].learning_rate` (official 3e-4), `enc_lr_scale` 0.3, `grad_clip_norm` 20, `tau` 0.01, `discount` unset (heuristic) |
+
+## `[sac]`
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `hidden_size` / `hidden_layers` | `256` / `2` | Actor and critic MLP shape. |
+| `num_q` | `2` | Critic ensemble size; targets use the minimum. |
+| `critic_norm` | `true` | LayerNorm in critic hidden layers. |
+| `initial_alpha` | `1.0` | Starting entropy temperature; tuned automatically. |
+| `target_entropy` | unset | Defaults to `-action_size`. |
+| `log_std_min` / `log_std_max` | `-5` / `2` | Actor log-std bounds. |
+| `tau` | `0.005` | Target critic update rate. |
+| `discount` | unset | Episode-length heuristic, as TD-MPC2. |
 
 ## Low-level CLI
 

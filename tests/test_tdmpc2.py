@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 
 from maton.offpolicy import Replay
-from maton.tdmpc2 import TDMPC2, TDMPC2Config, discount
+from maton.offpolicy import discount
+from maton.tdmpc2 import TDMPC2, TDMPC2Config
 from maton.training import TrainingConfig
 
 
@@ -15,9 +16,8 @@ def learner(**overrides):
 
 
 def test_discount_heuristic_matches_official_table():
-    config = TDMPC2Config()
-    assert [round(discount(config, length), 4) for length in (100, 500, 1000, 10_000)] == [0.95, 0.99, 0.995, 0.995]
-    assert discount(TDMPC2Config(discount=0.9), 500) == 0.9
+    assert [round(discount(None, length), 4) for length in (100, 500, 1000, 10_000)] == [0.95, 0.99, 0.995, 0.995]
+    assert discount(0.9, 500) == 0.9
 
 
 def test_two_hot_roundtrip_and_soft_ce_prefers_target():

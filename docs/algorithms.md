@@ -9,6 +9,7 @@ dependencies from it.
 | `ppo` | [ppo](ppo.md) | `policy.eqx` | `checkpoints/step-XXXXXXXX.eqx` |
 | `dreamer` | [dreamer](dreamer.md) | `dreamer.pkl` | `dreamer-XXXXXXXX.pkl` |
 | `tdmpc2` | [tdmpc2](tdmpc2.md) | `tdmpc2.eqx` | `checkpoints/step-XXXXXXXX.eqx` |
+| `sac` | [sac](sac.md) | `sac.eqx` | `checkpoints/step-XXXXXXXX.eqx` |
 
 ## Adding a trainer
 

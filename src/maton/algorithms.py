@@ -49,6 +49,7 @@ ALGORITHMS = {algorithm.name: algorithm for algorithm in (
     Algorithm('ppo', 'policy.eqx', 'checkpoints/step-{step}.eqx'),
     Algorithm('dreamer', 'dreamer.pkl', 'dreamer-{step}.pkl', assets=('src/maton/assets/dreamer_defaults.yaml',)),
     Algorithm('tdmpc2', 'tdmpc2.eqx', 'checkpoints/step-{step}.eqx', _OFF_POLICY),
+    Algorithm('sac', 'sac.eqx', 'checkpoints/step-{step}.eqx', _OFF_POLICY),
 )}
 
 

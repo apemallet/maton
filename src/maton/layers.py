@@ -88,13 +88,15 @@ class MLP(eqx.Module):
 
     def __init__(self, key: Array, size_in: int, hidden: tuple[int, ...], size_out: int, *,
                  output: Activation | None = None, ensemble: int | None = None, dropout: float = 0.0,
-                 zero: bool = False, hidden_activation: Activation = "mish", group: int = 8):
+                 zero: bool = False, hidden_activation: Activation = "mish", norm: bool = True,
+                 group: int = 8):
         """`output=None` ends in a plain Linear; otherwise a normalized layer with that activation.
-        Dropout applies to the first layer only; `zero` zero-initializes the final weights."""
+        `norm` toggles hidden LayerNorm; dropout applies to the first layer only; `zero`
+        zero-initializes the final weights."""
         sizes = (size_in, *hidden, size_out)
         keys = jax.random.split(key, len(sizes) - 1)
         layers = [Dense(keys[i], sizes[i], sizes[i + 1], ensemble=ensemble, activation=hidden_activation,
-                        dropout=dropout if i == 0 else 0.0, group=group) for i in range(len(hidden))]
+                        norm=norm, dropout=dropout if i == 0 else 0.0, group=group) for i in range(len(hidden))]
         layers.append(Dense(keys[-1], sizes[-2], sizes[-1], ensemble=ensemble, norm=output is not None,
                             activation=output or "none", zero=zero, group=group))
         self.layers = tuple(layers)

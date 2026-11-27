@@ -1,0 +1,28 @@
+algorithm = "sac"
+seed = 0
+walker = "../walkers/basic.toml"
+curriculum = "../curricula/walker.toml"
+
+[env]
+frame_skip = 1
+episode_length = 16
+
+[training]
+# Actual environment transitions, summed over parallel environments.
+steps = 32
+learning_rate = 0.0003
+checkpoint_every = 16
+
+[sac]
+num_envs = 2
+batch_size = 8
+seed_steps = 16
+log_every = 16
+hidden_size = 16
+
+[evaluations.level-1]
+checkpoint = "final"
+level = 1
+seed = 1000
+episodes = 1
+render = [0]
