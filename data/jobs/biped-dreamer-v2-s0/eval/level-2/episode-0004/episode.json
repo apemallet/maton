@@ -1,0 +1,13 @@
+{
+  "seed": 1004,
+  "steps": 327,
+  "reward": 183.92297639336903,
+  "level": 1,
+  "level_name": "small-blocks",
+  "success": true,
+  "distance": 8.030987739562988,
+  "terminated": true,
+  "truncated": false,
+  "dt": 0.04,
+  "upright_fraction": 1.0
+}
