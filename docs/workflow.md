@@ -7,6 +7,7 @@ Names identify experiments; settings are read from TOML, never inferred from nam
 ```text
 job + walker + curriculum → train/
 train/ + evaluation settings → eval/{evaluation}/
+train/ metrics → plots/training.png   (return and curriculum level vs transitions)
 saved episode → render/{evaluation}/episode-0000.mp4
 walker → data/walkers/{walker}/{zero,neutral}.png
 talk/slides.md + referenced data/ media → data/talk/index.html
@@ -58,14 +59,14 @@ Training happens in `data/jobs/{job}/progress/`, resumable on any machine.
 ```sh
 just train biped-tdmpc2-s0 2   # train for 2 hours (blank: to completion); Ctrl-C pauses
 just status                    # transitions, %, hours, sessions, level, return, machines
-just share biped-tdmpc2-s0     # commit progress, plus built eval/ and render/ (binaries via Git LFS)
+just share biped-tdmpc2-s0     # commit progress, plus built eval/, render/, plots/ (binaries via Git LFS)
 just job biped-tdmpc2-s0       # resume to the full budget, then publish train/, evaluate, render
 ```
 
 - Trainers save exact state in `progress/resume/` at every checkpoint interval and on pause.
   Same-machine resumes match uninterrupted training; PPO, SAC, and TD-MPC2 are bit-identical.
 - `progress.json` logs each session: steps, hours, machine, device, git revision.
-- Shared: progress log, metrics, run settings, resume state, latest model, evaluations, videos. Local only: replay
+- Shared: progress log, metrics, run settings, resume state, latest model, evaluations, videos, plots. Local only: replay
   buffers, numbered snapshots, published `train/`. Off-policy resumes elsewhere refill replay
   with the current policy for `seed_steps` before updating; Dreamer always restarts replay.
 - One machine trains a job at a time: `just share` and push when you stop; `git pull` before resuming.

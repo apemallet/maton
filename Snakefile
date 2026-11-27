@@ -48,7 +48,7 @@ def training_sources(name):
 
 def targets(name):
     experiment = Job.load(f"configs/jobs/{name}.toml")
-    return [f"data/jobs/{name}/train"] + [
+    return [f"data/jobs/{name}/train", f"data/jobs/{name}/plots/training.png"] + [
         f"data/jobs/{name}/eval/{evaluation}" for evaluation in experiment.evaluations
     ] + [
         f"data/jobs/{name}/render/{evaluation}/episode-{index:04d}.mp4"
@@ -114,6 +114,20 @@ rule render:
         runtime=30
     shell:
         "uv run python -m maton.workflow render --episode {params.episode:q} --output {output:q}"
+
+
+rule plot:
+    input:
+        train="data/jobs/{job}/train",
+        code=["src/maton/plots.py"]
+    output:
+        ensure("data/jobs/{job}/plots/training.png", non_empty=True)
+    threads: 1
+    resources:
+        mem_mb=1024,
+        runtime=5
+    shell:
+        "uv run python -m maton.plots --train {input.train:q} --output {output:q}"
 
 
 rule preview:

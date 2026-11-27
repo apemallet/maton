@@ -26,8 +26,11 @@ from pathlib import Path
 import sys
 from maton.jobs import Job, fingerprint
 
-stage = sys.argv[5]
-args = dict(zip(sys.argv[6::2], sys.argv[7::2]))
+# `uv run python -m maton.workflow <stage> ...` or `uv run python -m maton.<module> ...`
+workflow = sys.argv[4] == 'maton.workflow'
+stage = sys.argv[5] if workflow else sys.argv[4]
+rest = sys.argv[6:] if workflow else sys.argv[5:]
+args = dict(zip(rest[::2], rest[1::2]))
 output = Path(args['--output'])
 if stage == 'train':
     job = Job.load(args['--config'])
@@ -62,6 +65,7 @@ def test_dag_and_stage_invalidation(workflow):
     root, run = workflow
     first = run()
     assert 'localrule train:' in first and 'localrule evaluate:' in first and 'localrule render:' in first
+    assert 'localrule plot:' in first
     assert 'Nothing to be done' in run('-n')
     path = root / 'configs/jobs/smoke-ppo.toml'
     path.write_text(path.read_text().replace('render = [0]', 'render = []'))
