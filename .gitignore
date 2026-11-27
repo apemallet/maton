@@ -1,8 +1,10 @@
 /.direnv
 /data/**
-# Track only resumable progress; replay buffers and snapshots stay local.
+# Track resumable progress, evaluations and videos; replay buffers and snapshots stay local.
 !/data/**/
 !/data/jobs/*/progress/**
+!/data/jobs/*/eval/**
+!/data/jobs/*/render/**
 /data/jobs/*/progress/checkpoints/
 /data/jobs/*/progress/dreamer-*.pkl
 /data/jobs/*/progress/resume/replay.*

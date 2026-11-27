@@ -95,13 +95,15 @@ def run_session(job: Job, hours: float | None = None, steps: int | None = None) 
 
 
 def share(job: Job) -> None:
-    """Commit the job's progress (weights through Git LFS) so another machine can resume it."""
+    """Commit the job's progress (weights through Git LFS) so another machine can resume it,
+    plus any built evaluations and videos."""
     git = lambda *args, **kw: subprocess.run(['git', *args], **kw)
     if git('config', '--get', 'filter.lfs.clean', capture_output=True).returncode != 0:
         raise SystemExit("Git LFS is not enabled here; run 'just install' first.")
-    progress = str(progress_directory(job))
-    git('add', progress, check=True)
-    git('commit', '-m', summary_line(status([job])[0]), '--', progress, check=True)
+    root = progress_directory(job).parent
+    paths = [str(root / name) for name in ('progress', 'eval', 'render') if (root / name).exists()]
+    git('add', *paths, check=True)
+    git('commit', '-m', summary_line(status([job])[0]), '--', *paths, check=True)
 
 
 def build_train(job: Job, output: Path) -> None:
