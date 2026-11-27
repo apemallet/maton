@@ -1,0 +1,39 @@
+{
+  "algorithm": "sac",
+  "steps": 524288,
+  "complete": true,
+  "updates": 524288,
+  "episodes": 1501,
+  "seed_steps": 2560,
+  "seconds": 1033.5992068550001,
+  "session_steps_per_second": 507.24496984331233,
+  "last": {
+    "steps": 524288,
+    "updates": 524288,
+    "episodes": 1501,
+    "episode_return": 32.33021340232873,
+    "successes": 0,
+    "steps_per_second": 507.33457653550977,
+    "curriculum": {
+      "level": 5,
+      "name": "treacherous-terrain",
+      "successes": 0,
+      "successes_required": 4,
+      "window": 10,
+      "complete": false
+    },
+    "alpha": 0.019661636179080233,
+    "entropy": -3.986967610195279,
+    "pi_loss": -5.296204764395952,
+    "q_loss": 11.75989243015647,
+    "q_target": 5.484533861279488
+  },
+  "curriculum": {
+    "level": 5,
+    "name": "treacherous-terrain",
+    "successes": 0,
+    "successes_required": 4,
+    "window": 10,
+    "complete": false
+  }
+}

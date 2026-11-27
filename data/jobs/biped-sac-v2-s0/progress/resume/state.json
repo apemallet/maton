@@ -1,0 +1,36 @@
+{
+  "transitions": 524288,
+  "updates": 524288,
+  "episodes": 1501,
+  "debt": 0.0,
+  "pretrained": true,
+  "refill_until": 0,
+  "stored": 65536,
+  "episode_return": [
+    44.03783984016627,
+    4.699552245438099,
+    43.88821383751929,
+    1.6977249393239617,
+    16.489924722816795,
+    44.93221039371565,
+    21.137056983541697,
+    38.92879821918905
+  ],
+  "seconds": 1033.449356929,
+  "curriculum": {
+    "level": 5,
+    "recent": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "complete": false
+  }
+}

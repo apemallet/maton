@@ -1,0 +1,36 @@
+{
+  "job": "biped-sac-v2-s0",
+  "algorithm": "sac",
+  "training_fingerprint": "04b946413ae38340b4b27aa5fcdddd486db287e902bfc486a19b55e32f643b3f",
+  "total": 524288,
+  "steps": 524288,
+  "complete": true,
+  "hours": 0.2956,
+  "sessions": [
+    {
+      "started": "2026-11-27T22:39:16+00:00",
+      "hours": 0.2956,
+      "steps": [
+        0,
+        524288
+      ],
+      "machine": "wslOnix",
+      "device": "gpu",
+      "revision": "42a7f17bac0f2cf860a8f0d431565bf835291913",
+      "dirty": true
+    }
+  ],
+  "curriculum": {
+    "level": 5,
+    "name": "treacherous-terrain",
+    "successes": 0,
+    "successes_required": 4,
+    "window": 10,
+    "complete": false
+  },
+  "latest": {
+    "steps": 524288,
+    "episode_return": 32.33021340232873,
+    "successes": 0
+  }
+}

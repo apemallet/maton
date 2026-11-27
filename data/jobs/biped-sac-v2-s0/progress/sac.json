@@ -1,0 +1,38 @@
+{
+  "algorithm": "sac",
+  "step": 524288,
+  "observation_size": 53,
+  "action_size": 4,
+  "episode_length": 512,
+  "config": {
+    "num_envs": 8,
+    "batch_size": 256,
+    "buffer_size": 1000000,
+    "seed_steps": null,
+    "update_ratio": 1.0,
+    "log_every": 2048,
+    "hidden_size": 256,
+    "hidden_layers": 2,
+    "num_q": 2,
+    "critic_norm": true,
+    "initial_alpha": 1.0,
+    "target_entropy": null,
+    "log_std_min": -5.0,
+    "log_std_max": 2.0,
+    "tau": 0.005,
+    "discount": null
+  },
+  "training": {
+    "steps": 524288,
+    "learning_rate": 0.0003,
+    "checkpoint_every": 8192
+  },
+  "curriculum": {
+    "level": 5,
+    "name": "treacherous-terrain",
+    "successes": 0,
+    "successes_required": 4,
+    "window": 10,
+    "complete": false
+  }
+}
