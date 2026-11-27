@@ -1,0 +1,13 @@
+{
+  "seed": 1003,
+  "steps": 110,
+  "reward": 104.6378000145778,
+  "level": 4,
+  "level_name": "dangerous-gaps",
+  "success": true,
+  "distance": 4.0479350090026855,
+  "terminated": true,
+  "truncated": false,
+  "dt": 0.04,
+  "upright_fraction": 1.0
+}

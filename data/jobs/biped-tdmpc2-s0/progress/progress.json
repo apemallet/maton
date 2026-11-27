@@ -63,9 +63,5 @@
     "successes_required": 5,
     "complete": true
   },
-  "latest": {
-    "steps": 524288,
-    "episode_return": 22.211935443693825,
-    "successes": 0
-  }
+  "latest": {}
 }
