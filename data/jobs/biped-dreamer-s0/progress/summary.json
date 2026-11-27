@@ -1,0 +1,16 @@
+{
+  "steps": 503212,
+  "complete": false,
+  "updates": 125799,
+  "episodes": 1010,
+  "seconds": 3592.168570799986,
+  "checkpoint": "data\\jobs\\biped-dreamer-s0\\progress\\dreamer.pkl",
+  "upstream_commit": "e01491fad6434b2245a3b8ca201dd7faedcc458c",
+  "curriculum": {
+    "level": 5,
+    "name": "treacherous-terrain",
+    "successes": 1,
+    "successes_required": 5,
+    "complete": false
+  }
+}

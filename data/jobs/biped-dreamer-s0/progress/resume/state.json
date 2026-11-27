@@ -1,0 +1,15 @@
+{
+  "step": 503212,
+  "episodes": 1010,
+  "updates": 125799,
+  "seconds": 3592.148402199993,
+  "key": [
+    757738768,
+    2037689155
+  ],
+  "curriculum": {
+    "level": 5,
+    "successes": 1,
+    "complete": false
+  }
+}
