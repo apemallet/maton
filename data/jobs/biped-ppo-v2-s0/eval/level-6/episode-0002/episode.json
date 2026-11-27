@@ -1,0 +1,13 @@
+{
+  "seed": 1002,
+  "steps": 112,
+  "reward": 0.4776363727833086,
+  "level": 5,
+  "level_name": "treacherous-terrain",
+  "success": false,
+  "distance": 1.7897756099700928,
+  "terminated": true,
+  "truncated": false,
+  "dt": 0.04,
+  "upright_fraction": 0.7787610619469026
+}

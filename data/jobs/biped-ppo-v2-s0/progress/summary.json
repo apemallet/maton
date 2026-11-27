@@ -4,7 +4,7 @@
   "complete": true,
   "updates": 256,
   "episodes": 2422,
-  "seconds": 619.7892035449995,
+  "seconds": 619.6720023569997,
   "last": {
     "loss": 2.423731803894043,
     "actor_loss": 0.0036266727838665247,
