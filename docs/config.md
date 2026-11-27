@@ -1,7 +1,7 @@
 # Configuration reference
 
 Jobs live in `configs/jobs/`: `basic-{ppo,dreamer}-s0` preserves the original small
-job; `biped-{ppo,dreamer}-s0` trains walking; `smoke-{ppo,dreamer}` checks integration.
+job; `biped-{ppo,dreamer,tdmpc2}-s0` trains walking; `smoke-*` checks integration.
 See [workflow](workflow.md) for names, artifact paths, evaluations, and rebuild policy.
 
 ## Root
@@ -144,6 +144,30 @@ value function. Unexposed upstream settings use the bundled, pinned defaults.
 Larger batches, sequences, latent states, and imagination horizons cost more
 memory and computation. `platform` configures Dreamer; MJX uses JAX's default
 device selection. See [Dreamer integration](dreamer.md).
+
+## Off-policy trainers: shared options
+
+`[tdmpc2]` accepts these, plus its own options below. See the [driver](offpolicy.md).
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `num_envs` | `4` | Parallel environments; must divide `training.steps`. |
+| `batch_size` | `256` | Replay windows per update. |
+| `buffer_size` | `1_000_000` | Replay capacity in transitions (capped at the budget). |
+| `seed_steps` | unset | Random-action transitions before learning; unset: `max(1000, 5 × episode_length)`. |
+| `update_ratio` | `1.0` | Gradient updates per transition. |
+| `log_every` | `2048` | Transitions between `metrics.jsonl` rows. |
+
+## `[tdmpc2]`
+
+Defaults are the official 5M configuration; see [TD-MPC2](tdmpc2.md).
+
+| Group | Options (defaults) |
+| --- | --- |
+| Model | `latent_dim` 512, `mlp_dim` 512, `enc_dim` 256, `num_enc_layers` 2, `num_q` 5, `simnorm_dim` 8, `dropout` 0.01, `num_bins` 101, `vmin`/`vmax` ±10 (symlog), `episodic` true |
+| Planning | `mpc` true, `horizon` 3, `iterations` 6, `num_samples` 512, `num_elites` 64, `num_pi_trajs` 24, `min_std` 0.05, `max_std` 2, `temperature` 0.5 |
+| Losses | `rho` 0.5, `consistency_coef` 20, `reward_coef` 0.1, `value_coef` 0.1, `termination_coef` 1, `entropy_coef` 1e-4, `log_std_min`/`log_std_max` −10/2 |
+| Optimizer | `[training].learning_rate` (official 3e-4), `enc_lr_scale` 0.3, `grad_clip_norm` 20, `tau` 0.01, `discount` unset (heuristic) |
 
 ## Low-level CLI
 

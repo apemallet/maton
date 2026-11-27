@@ -8,6 +8,7 @@ dependencies from it.
 | --- | --- | --- | --- |
 | `ppo` | [ppo](ppo.md) | `policy.eqx` | `checkpoints/step-XXXXXXXX.eqx` |
 | `dreamer` | [dreamer](dreamer.md) | `dreamer.pkl` | `dreamer-XXXXXXXX.pkl` |
+| `tdmpc2` | [tdmpc2](tdmpc2.md) | `tdmpc2.eqx` | `checkpoints/step-XXXXXXXX.eqx` |
 
 ## Adding a trainer
 
@@ -21,3 +22,5 @@ dependencies from it.
 3. Add `configs/jobs/smoke-<name>.toml`, tests, and a docs page.
 
 `run.json` stores only the selected trainer's resolved table.
+
+Off-policy trainers can reuse the [shared driver](offpolicy.md) and supply only a `Learner`.
