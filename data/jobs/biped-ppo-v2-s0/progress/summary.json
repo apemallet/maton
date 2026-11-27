@@ -1,0 +1,32 @@
+{
+  "algorithm": "ppo",
+  "steps": 524288,
+  "complete": true,
+  "updates": 256,
+  "episodes": 2422,
+  "seconds": 619.7892035449995,
+  "last": {
+    "loss": 2.423731803894043,
+    "actor_loss": 0.0036266727838665247,
+    "value_loss": 4.8402099609375,
+    "entropy": -1.0886842012405396,
+    "approx_kl": 0.01463751494884491,
+    "grad_norm": 17.250810623168945,
+    "update": 256,
+    "steps": 524288,
+    "reward_mean": 0.13052675127983093,
+    "curriculum_level": 2,
+    "curriculum_successes": 0,
+    "curriculum_complete": false,
+    "episodes": 2422,
+    "episode_return_mean": 19.832622228451093
+  },
+  "curriculum": {
+    "level": 2,
+    "name": "larger-blocks",
+    "successes": 0,
+    "successes_required": 4,
+    "window": 10,
+    "complete": false
+  }
+}

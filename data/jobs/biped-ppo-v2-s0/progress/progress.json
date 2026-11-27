@@ -1,0 +1,35 @@
+{
+  "job": "biped-ppo-v2-s0",
+  "algorithm": "ppo",
+  "training_fingerprint": "9e32b1281cbd8a254aa8aaa1986358d50bfb4e9efbe0d5d775744eefdd1fd106",
+  "total": 524288,
+  "steps": 524288,
+  "complete": true,
+  "hours": 0.1801,
+  "sessions": [
+    {
+      "started": "2026-11-27T23:20:00+00:00",
+      "hours": 0.1801,
+      "steps": [
+        0,
+        524288
+      ],
+      "machine": "wslOnix",
+      "device": "gpu",
+      "revision": "54ecebfbba3da7a083ff8ce1ec8a4f246119c911",
+      "dirty": true
+    }
+  ],
+  "curriculum": {
+    "level": 2,
+    "name": "larger-blocks",
+    "successes": 0,
+    "successes_required": 4,
+    "window": 10,
+    "complete": false
+  },
+  "latest": {
+    "steps": 524288,
+    "episode_return_mean": 19.832622228451093
+  }
+}
