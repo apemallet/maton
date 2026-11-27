@@ -1,0 +1,32 @@
+{
+  "job": "basic-dreamer-v2-s0",
+  "algorithm": "dreamer",
+  "training_fingerprint": "a474d6443eddfab30dede1003c74a6d0a8ef36ffdf7475f3c986b9a6f8681a08",
+  "total": 8192,
+  "steps": 8192,
+  "complete": true,
+  "hours": 0.0106,
+  "sessions": [
+    {
+      "started": "2026-11-27T22:09:43+00:00",
+      "hours": 0.0106,
+      "steps": [
+        0,
+        8192
+      ],
+      "machine": "Mason3080",
+      "device": "cpu",
+      "revision": "35e821e83811698bc310717b78680fda7056dd16",
+      "dirty": true
+    }
+  ],
+  "curriculum": {
+    "level": 0,
+    "name": "flat-walking",
+    "successes": 0,
+    "successes_required": 4,
+    "window": 10,
+    "complete": false
+  },
+  "latest": {}
+}
