@@ -1,0 +1,32 @@
+{
+  "algorithm": "ppo",
+  "steps": 8192,
+  "complete": true,
+  "updates": 128,
+  "episodes": 78,
+  "seconds": 32.9432193999819,
+  "last": {
+    "loss": -0.0014202166348695755,
+    "actor_loss": -0.0022556036710739136,
+    "value_loss": 0.009011359885334969,
+    "entropy": 3.6702892780303955,
+    "approx_kl": -0.004959304817020893,
+    "grad_norm": 2.1824917793273926,
+    "update": 128,
+    "steps": 8192,
+    "reward_mean": 0.014896327629685402,
+    "curriculum_level": 0,
+    "curriculum_successes": 0,
+    "curriculum_complete": false,
+    "episodes": 78,
+    "episode_return_mean": 0.47184357352338185
+  },
+  "curriculum": {
+    "level": 0,
+    "name": "flat-walking",
+    "successes": 0,
+    "successes_required": 4,
+    "window": 10,
+    "complete": false
+  }
+}
