@@ -28,3 +28,8 @@ smoke *args:
 view-walker walker='biped' pose='zero':
 	uv run snakemake data/walkers/{{walker}}/{{pose}}.png
 	open data/walkers/{{walker}}/{{pose}}.png
+
+# Build the talk deck (and any data/ media it references), then open it.
+talk *args:
+	uv run snakemake data/talk {{args}}
+	open data/talk/index.html

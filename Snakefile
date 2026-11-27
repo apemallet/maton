@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from maton.jobs import Job, NAME, fingerprint
+from maton.talk import media
 
 
 wildcard_constraints:
@@ -130,3 +131,21 @@ rule preview:
     shell:
         "uv run python -m maton.workflow preview --walker {input.walker:q} "
         "--pose {wildcards.pose:q} --output {output:q}"
+
+
+rule talk:
+    input:
+        slides="talk/slides.md",
+        template="talk/template.html",
+        # Every src="data/..." or ](data/...) reference; Snakemake builds them first.
+        media=lambda w: media(Path("talk/slides.md")),
+        code=["src/maton/talk.py"]
+    output:
+        directory("data/talk")
+    threads: 1
+    resources:
+        mem_mb=512,
+        runtime=5
+    shell:
+        "uv run python -m maton.talk --slides {input.slides:q} "
+        "--template {input.template:q} --output {output:q}"

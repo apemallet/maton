@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maton Status Talk</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<style>
+:root {
+  --bg: #0b0f14;
+  --surface: #121922;
+  --line: #233140;
+  --text: #dbe4ee;
+  --muted: #7d8da1;
+  --accent: #4fe3c1;
+  --pass: #3ecf8e;
+  --part: #e8b04a;
+  --fail: #ef5f6b;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --sans: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
+}
+:root { --r-background-color: var(--bg); --r-main-color: var(--text); --r-heading-color: var(--text); --r-link-color: var(--accent); }
+html, body, .reveal-viewport { background: var(--bg); }
+.reveal { font-family: var(--sans); font-size: 30px; color: var(--text); }
+.reveal .slides { text-align: left; }
+.reveal .slides section { height: 100%; }
+.reveal h1, .reveal h2, .reveal h3 { font-family: var(--sans); color: var(--text); letter-spacing: -0.02em; text-transform: none; margin: 0 0 0.5em; }
+.reveal h1 { font-size: 2.6em; font-weight: 700; }
+.reveal h2 { font-size: 1.5em; font-weight: 650; }
+.reveal h3 { font-size: 1.0em; font-weight: 500; color: var(--muted); }
+.reveal p, .reveal li { line-height: 1.4; }
+.reveal ul, .reveal ol { margin-left: 1.1em; }
+.reveal li + li { margin-top: 0.3em; }
+.reveal strong { color: var(--accent); font-weight: 600; }
+.reveal code { font-family: var(--mono); font-size: 0.85em; color: var(--accent); }
+.reveal a { color: var(--accent); }
+.reveal img { display: block; max-width: 100%; max-height: 500px; height: auto; margin: 0; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.reveal table { border-collapse: collapse; font-size: 0.72em; margin: 0.4em 0; }
+.reveal table th, .reveal table td { border: none; border-bottom: 1px solid var(--line); padding: 0.32em 0.7em; text-align: left; }
+.reveal table th { color: var(--muted); font-weight: 500; }
+.reveal .small { font-size: 0.65em; color: var(--muted); }
+.reveal .kicker { font-family: var(--mono); font-size: 0.6em; color: var(--accent); text-transform: uppercase; letter-spacing: 0.12em; }
+.reveal .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2em; align-items: start; }
+.reveal .cols.wide-left { grid-template-columns: 1.2fr 1fr; }
+.reveal .cols > * { min-width: 0; }
+.reveal .stat { font-family: var(--mono); font-size: 2.4em; color: var(--accent); line-height: 1; }
+.reveal .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 0.6em 0.8em; }
+.reveal .todo { border: 2px dashed var(--line); border-radius: 8px; color: var(--muted); font-family: var(--mono); font-size: 0.55em; display: flex; align-items: center; justify-content: center; text-align: center; min-height: 6em; padding: 1em; }
+.reveal .pipeline { display: flex; align-items: center; gap: 0.5em; font-family: var(--mono); font-size: 0.6em; margin: 0.6em 0 1em; }
+.reveal .pipeline .card { white-space: nowrap; }
+.reveal .pipeline .arrow { color: var(--accent); }
+.reveal .pass, .reveal .part, .reveal .fail { font-family: var(--mono); font-weight: 600; }
+.reveal .pass { color: var(--pass); }
+.reveal .part { color: var(--part); }
+.reveal .fail { color: var(--fail); }
+.reveal .verdict { border-left: 3px solid var(--accent); padding-left: 0.7em; margin-top: 0.8em; }
+.reveal .slide-number { background: transparent; color: var(--muted); font-family: var(--mono); }
+.reveal .progress { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="reveal"><div class="slides">
+<section data-markdown data-separator="^\r?\n---\r?\n$" data-separator-notes="^Note:">
+<textarea data-template>
+{{slides}}
+</textarea>
+</section>
+</div></div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/markdown/markdown.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+<script>
+Reveal.initialize({
+  width: 1280, height: 720, margin: 0.06, center: false,
+  hash: true, slideNumber: 'c/t', transition: 'none',
+  plugins: [RevealMarkdown, RevealNotes],
+});
+</script>
+</body>
+</html>

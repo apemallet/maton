@@ -9,6 +9,7 @@ job + walker + curriculum → train/
 train/ + evaluation settings → eval/{evaluation}/
 saved episode → render/{evaluation}/episode-0000.mp4
 walker → data/walkers/{walker}/{zero,neutral}.png
+talk/slides.md + referenced data/ media → data/talk/index.html
 ```
 
 Each job selects exactly one algorithm and contains only its trainer table.

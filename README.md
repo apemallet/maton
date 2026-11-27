@@ -16,6 +16,7 @@ just job smoke-dreamer
 just job biped-ppo-s0
 just build data/jobs/biped-ppo-s0/render/level-1/episode-0000.mp4 -n
 just view-walker quadruped neutral
+just talk                       # status deck: talk/slides.md → data/talk/
 ```
 
 Experiments live in [configs/jobs](configs/jobs). A job selects an algorithm,
