@@ -1,0 +1,42 @@
+{
+  "algorithm": "tdmpc2",
+  "steps": 195584,
+  "complete": false,
+  "updates": 195584,
+  "episodes": 404,
+  "seed_steps": 2560,
+  "seconds": 1904.7450169689998,
+  "session_steps_per_second": 107.92448547793126,
+  "last": {
+    "steps": 194560,
+    "updates": 194560,
+    "episodes": 403,
+    "episode_return": 0.12376728723179298,
+    "successes": 0,
+    "steps_per_second": 108.01518834884297,
+    "curriculum": {
+      "level": 5,
+      "name": "treacherous-terrain",
+      "successes": 5,
+      "successes_required": 5,
+      "complete": true
+    },
+    "consistency_loss": 0.0007505669066176779,
+    "grad_norm": 0.3449437527451664,
+    "pi_loss": -0.06293021462624893,
+    "pi_scale": 51.61306497454643,
+    "pi_scaled_entropy": 48.02302075922489,
+    "reward_loss": 0.08310965044074692,
+    "td_target": 6.467005003243685,
+    "termination_loss": 5.816383011766901e-05,
+    "total_loss": 0.0630448421870824,
+    "value_loss": 0.3966437380295247
+  },
+  "curriculum": {
+    "level": 5,
+    "name": "treacherous-terrain",
+    "successes": 5,
+    "successes_required": 5,
+    "complete": true
+  }
+}
