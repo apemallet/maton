@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import shutil
 import signal
@@ -16,7 +15,7 @@ def test_pause_on_steps_and_first_interrupt():
     assert Pause(hours=0)(0)
     pause = Pause()
     with pause.catching_interrupt():
-        os.kill(os.getpid(), signal.SIGINT)
+        signal.raise_signal(signal.SIGINT)  # os.kill terminates the process on Windows
         assert pause(0)
 
 

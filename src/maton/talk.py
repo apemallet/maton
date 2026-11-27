@@ -12,11 +12,11 @@ PLACEHOLDER = '{{slides}}'
 
 def media(slides: Path) -> list[str]:
     """Repository-relative data/ artifacts the deck needs; Snakemake builds them first."""
-    return sorted(set(MEDIA.findall(slides.read_text())))
+    return sorted(set(MEDIA.findall(slides.read_text(encoding='utf-8'))))
 
 
 def build(slides: Path, template: Path, output: Path, root: Path = Path('.')) -> None:
-    page = template.read_text()
+    page = template.read_text(encoding='utf-8')
     if page.count(PLACEHOLDER) != 1:
         raise ValueError(f'{template} must contain {PLACEHOLDER} exactly once')
     output.mkdir(parents=True, exist_ok=True)
@@ -27,9 +27,9 @@ def build(slides: Path, template: Path, output: Path, root: Path = Path('.')) ->
         target = output / 'media' / Path(path).relative_to('data')
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
-    text = MEDIA.sub(lambda match: 'media/' + match.group(0).removeprefix('data/'), slides.read_text())
+    text = MEDIA.sub(lambda match: 'media/' + match.group(0).removeprefix('data/'), slides.read_text(encoding='utf-8'))
     # The Markdown lives in a <textarea>; escaping keeps `</textarea>` and `&` literal.
-    (output / 'index.html').write_text(page.replace(PLACEHOLDER, html.escape(text, quote=False)))
+    (output / 'index.html').write_text(page.replace(PLACEHOLDER, html.escape(text, quote=False)), encoding='utf-8')
 
 
 def main() -> None:

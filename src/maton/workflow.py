@@ -29,7 +29,9 @@ def staged_directory(output: Path) -> Iterator[Path]:
         # Training summaries contain their checkpoint's path.
         summary = stage / 'summary.json'
         if summary.exists():
-            summary.write_text(summary.read_text().replace(str(stage), str(output)))
+            # Match the JSON-escaped form: Windows separators are written as `\\`.
+            escape = lambda path: json.dumps(str(path))[1:-1]
+            summary.write_text(summary.read_text().replace(escape(stage), escape(output)))
         stage.rename(output)
 
 
@@ -90,6 +92,16 @@ def run_session(job: Job, hours: float | None = None, steps: int | None = None) 
                                if key in ('episode_return', 'episode_return_mean', 'successes', 'steps')})
             (progress / 'progress.json').write_text(json.dumps(log, indent=2) + '\n')
     return log
+
+
+def share(job: Job) -> None:
+    """Commit the job's progress (weights through Git LFS) so another machine can resume it."""
+    git = lambda *args, **kw: subprocess.run(['git', *args], **kw)
+    if git('config', '--get', 'filter.lfs.clean', capture_output=True).returncode != 0:
+        raise SystemExit("Git LFS is not enabled here; run 'just install' first.")
+    progress = str(progress_directory(job))
+    git('add', progress, check=True)
+    git('commit', '-m', summary_line(status([job])[0]), '--', progress, check=True)
 
 
 def build_train(job: Job, output: Path) -> None:
@@ -192,6 +204,8 @@ def main() -> None:
     report = commands.add_parser('status', help='Training progress of every job')
     report.add_argument('--job', help='Only this job name')
     report.add_argument('--oneline', action='store_true', help='Commit-message summary')
+    publish = commands.add_parser('share', help="Commit a job's progress so another machine can resume it")
+    publish.add_argument('--job', required=True)
     preview = commands.add_parser('preview')
     preview.add_argument('--walker', type=Path, required=True)
     preview.add_argument('--pose', choices=('zero', 'neutral'), required=True)
@@ -208,6 +222,8 @@ def main() -> None:
         paths = [Path(f'configs/jobs/{args.job}.toml')] if args.job else sorted(Path('configs/jobs').glob('*.toml'))
         rows = status([Job.load(path) for path in paths])
         print(summary_line(rows[0]) if args.oneline else format_status(rows))
+    elif args.stage == 'share':
+        share(Job.load(Path(f'configs/jobs/{args.job}.toml')))
     elif args.stage == 'render':
         build_render(args.episode, args.output)
     else:

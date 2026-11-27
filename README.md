@@ -29,6 +29,9 @@ seed, [walker](docs/walker.md), [curriculum](docs/curriculum.md), training setti
 and named evaluations. On Linux, `uv sync` installs CUDA 12 JAX (only an NVIDIA driver is
 needed); `just devices` should list the GPU. PPO, SAC, and TD-MPC2 use it automatically;
 Dreamer defaults to CPU, so set `dreamer.platform = "gpu"`.
+Native Windows works (recipes run in PowerShell) but JAX is CPU-only there. For the GPU, run
+`nix develop` in WSL2 on the same checkout: the flake finds the Windows NVIDIA driver and keeps
+its venv in `~/.venvs/` so it never touches the Windows `.venv`.
 
 Snakemake owns all generated artifacts under `data/`. Completed training is
 protected; changed experiments receive new job names. Evaluations save exact

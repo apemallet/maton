@@ -1,9 +1,15 @@
 # The justfile stores all the useful commands for the project
 #
-# Everything runs through uv, so recipes behave the same on macOS and Linux.
+# Everything runs through uv, so recipes behave the same on macOS, Linux and Windows.
+# Recipe lines stay valid in both sh and PowerShell; anything fancier lives in Python.
 # Snakemake owns generated artifacts under data/; see docs/workflow.md.
 
-open := if os() == "macos" { "open" } else { "xdg-open" }
+set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
+
+# windows otherwise defaults python text i/o to cp1252
+export PYTHONUTF8 := "1"
+
+open := if os() == "macos" { "open" } else if os() == "windows" { "Invoke-Item" } else { "xdg-open" }
 
 # default recipe
 [private]
@@ -60,10 +66,8 @@ status:
 # commit one job's progress (weights via git lfs) so another machine can resume it
 [group("training")]
 share name:
-    @git config --get filter.lfs.clean >/dev/null || (just print "Git LFS is not enabled here; run 'just install' first." && exit 1)
     @just bprint "📤 Committing {{ name }} progress..."
-    @git add data/jobs/{{ name }}/progress
-    @git commit -m "$(uv run python -m maton.workflow status --job {{ name }} --oneline)" -- data/jobs/{{ name }}/progress
+    @uv run python -m maton.workflow share --job {{ name }}
 
 alias s := status
 
@@ -115,9 +119,9 @@ talk *args:
 # print a message
 [private]
 print message:
-    @printf '%s\n' "{{ message }}"
+    @echo "{{ message }}"
 
 # print a message in bold
 [private]
 bprint message:
-    @printf '\033[1m%s\033[0m\n' "{{ message }}"
+    @echo "{{ BOLD }}{{ message }}{{ NORMAL }}"

@@ -99,7 +99,7 @@ def _runtime() -> tuple[Any, Any, Any]:
 def agent_config(config: DreamerConfig, training: TrainingConfig, output: Path, seed: int):
     elements, _, _ = _runtime()
     from ruamel.yaml import YAML
-    defaults = YAML(typ="safe").load(files("maton").joinpath("assets/dreamer_defaults.yaml").read_text())["defaults"]
+    defaults = YAML(typ="safe").load(files("maton").joinpath("assets/dreamer_defaults.yaml").read_text(encoding="utf-8"))["defaults"]
     defaults["jax"].update(transfer_guard=False, precompile=False, profiler=False)
     cfg = elements.Config(defaults).update({
         "logdir": str(output), "seed": seed, "batch_size": config.batch_size,

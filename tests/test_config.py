@@ -28,8 +28,8 @@ def test_root_configs_and_resolved_snapshot(tmp_path):
                                      "[training]\nsteps=0"])
 def test_reject_bad_config(tmp_path, contents):
     path = tmp_path / "bad.toml"
-    walker = Path("configs/walkers/basic.toml").resolve()
-    reference = Path("configs/curricula/walker.toml").resolve()
+    walker = Path("configs/walkers/basic.toml").resolve().as_posix()
+    reference = Path("configs/curricula/walker.toml").resolve().as_posix()
     path.write_text(f'algorithm = "ppo"\nwalker = "{walker}"\ncurriculum = "{reference}"\n' + contents)
     with pytest.raises((ValueError, TypeError)):
         Config.load(path)
@@ -39,7 +39,7 @@ def test_walker_reference_is_relative_and_snapshot_is_self_contained(tmp_path):
     source = Path("configs/walkers/quadruped.toml")
     structure = tmp_path / "structure.toml"
     structure.write_text(source.read_text())
-    curriculum = Path("configs/curricula/walker.toml").resolve()
+    curriculum = Path("configs/curricula/walker.toml").resolve().as_posix()
     job = tmp_path / "job.toml"
     job.write_text(f'algorithm = "ppo"\nwalker = "structure.toml"\ncurriculum = "{curriculum}"\n')
     config = Config.load(job)

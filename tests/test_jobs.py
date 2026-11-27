@@ -13,7 +13,7 @@ def copy_job(tmp_path):
     contents = source.read_text()
     for kind in ('walker', 'curriculum'):
         job = Job.load(source)
-        contents = contents.replace(str(job.settings[kind]), str(job.reference(kind).resolve()))
+        contents = contents.replace(str(job.settings[kind]), job.reference(kind).resolve().as_posix())
     path = tmp_path / 'test-job.toml'
     path.write_text(contents)
     return path
@@ -51,7 +51,7 @@ def test_shared_structure_changes_training_identity(tmp_path):
     job = Job.load(path)
     structure = tmp_path / 'walker.toml'
     structure.write_text(job.reference('walker').read_text())
-    path.write_text(path.read_text().replace(str(job.reference('walker')), str(structure)))
+    path.write_text(path.read_text().replace(job.reference('walker').as_posix(), structure.as_posix()))
     before = fingerprint(Job.load(path).training_spec())
     # Formatting changes do not invalidate training; semantic changes do.
     structure.write_text(structure.read_text() + '\n# comment\n')

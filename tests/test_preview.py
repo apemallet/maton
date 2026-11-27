@@ -26,7 +26,7 @@ def test_cli_preview_default_destination(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     main(['view-walker', str(walker), '--neutral'])
     assert Path('data/walkers/basic.png').is_file()
-    assert capsys.readouterr().out.strip() == 'data/walkers/basic.png'
+    assert Path(capsys.readouterr().out.strip()) == Path('data/walkers/basic.png')
 
 
 def test_preview_rejects_invalid_structure(tmp_path):

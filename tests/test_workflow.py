@@ -86,7 +86,8 @@ def test_protected_training_and_preview_target(workflow):
     assert 'protected' in run('data/jobs/smoke-ppo/train', '--forcerun', 'train', success=False).lower()
     source = root / 'src/maton/ppo.py'
     source.write_text(source.read_text() + '\n# changed training implementation\n')
-    assert 'protected' in run('data/jobs/smoke-ppo/train', '-n', success=False).lower()
+    # A real run, not -n: Windows ignores read-only directories, so dry runs miss protection.
+    assert 'protected' in run('data/jobs/smoke-ppo/train', success=False).lower()
     preview = 'data/walkers/quadruped/neutral.png'
     run(preview)
     assert (root / preview).is_file()

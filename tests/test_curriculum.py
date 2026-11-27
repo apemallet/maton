@@ -46,7 +46,7 @@ def test_curriculum_reference_is_relative_and_snapshot_is_self_contained(tmp_pat
     reference = folder / "course.toml"
     reference.write_text('[[levels]]\nname="flat"\n[levels.terrain]\nblock_frequency=0\ngap_frequency=0\n')
     job = folder / "job.toml"
-    walker = Path('configs/walkers/basic.toml').resolve()
+    walker = Path('configs/walkers/basic.toml').resolve().as_posix()
     job.write_text(f'algorithm = "ppo"\nwalker = "{walker}"\ncurriculum = "course.toml"\n')
     monkeypatch.chdir(tmp_path)
     config = Config.load(job)
