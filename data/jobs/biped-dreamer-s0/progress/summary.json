@@ -3,7 +3,7 @@
   "complete": true,
   "updates": 131064,
   "episodes": 1051,
-  "seconds": 3772.968262199982,
+  "seconds": 3772.9664266999753,
   "checkpoint": "data\\jobs\\biped-dreamer-s0\\progress\\dreamer.pkl",
   "upstream_commit": "e01491fad6434b2245a3b8ca201dd7faedcc458c",
   "curriculum": {
