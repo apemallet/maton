@@ -1,36 +1,36 @@
 {
-  "transitions": 189880,
-  "updates": 189880,
-  "episodes": 1358,
+  "transitions": 382232,
+  "updates": 382232,
+  "episodes": 2356,
   "debt": 0.0,
   "pretrained": true,
   "refill_until": 0,
-  "stored": 23735,
+  "stored": 47779,
   "episode_return": [
-    62.07298772409558,
-    109.61703189834952,
-    100.23584583541378,
-    39.8094909125939,
-    19.687433330807835,
-    45.72590751526877,
-    16.660796879325062,
-    0.1309572523357474
+    9.011251858901232,
+    15.71603879891336,
+    50.6634900898207,
+    142.1154611222446,
+    39.66093183821067,
+    11.895576659590006,
+    95.67667015921324,
+    43.46573326969519
   ],
-  "seconds": 1788.8242329769998,
+  "seconds": 3575.7253717490003,
   "curriculum": {
-    "level": 4,
+    "level": 5,
     "recent": [
+      true,
       false,
       false,
       false,
       false,
+      true,
       false,
       false,
-      false,
-      false,
-      false,
-      false
+      true,
+      true
     ],
-    "complete": false
+    "complete": true
   }
 }

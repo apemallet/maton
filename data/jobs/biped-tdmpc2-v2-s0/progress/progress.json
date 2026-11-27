@@ -3,9 +3,9 @@
   "algorithm": "tdmpc2",
   "training_fingerprint": "9337b80e0f981668c9feb3425907a0ec75b1256313882ae77a8bf0c469c5ad37",
   "total": 524288,
-  "steps": 189880,
+  "steps": 382232,
   "complete": false,
-  "hours": 0.5037,
+  "hours": 1.0076,
   "sessions": [
     {
       "started": "2026-11-27T20:48:31+00:00",
@@ -18,19 +18,31 @@
       "device": "gpu",
       "revision": "e5d0fbb792d5c6228778c75f6d66ce87db55da25",
       "dirty": true
+    },
+    {
+      "started": "2026-11-27T21:20:13+00:00",
+      "hours": 0.5039,
+      "steps": [
+        189880,
+        382232
+      ],
+      "machine": "wslOnix",
+      "device": "gpu",
+      "revision": "adda0bddbb16d89f48016d9c49b6414cefa93c6d",
+      "dirty": true
     }
   ],
   "curriculum": {
-    "level": 4,
-    "name": "dangerous-gaps",
-    "successes": 0,
+    "level": 5,
+    "name": "treacherous-terrain",
+    "successes": 4,
     "successes_required": 4,
     "window": 10,
-    "complete": false
+    "complete": true
   },
   "latest": {
-    "steps": 188416,
-    "episode_return": 4.070658313446659,
+    "steps": 380928,
+    "episode_return": 11.293905751322889,
     "successes": 0
   }
 }

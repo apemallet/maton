@@ -1,6 +1,6 @@
 {
   "algorithm": "tdmpc2",
-  "step": 188416,
+  "step": 376832,
   "observation_size": 53,
   "action_size": 4,
   "episode_length": 512,
@@ -50,11 +50,11 @@
     "checkpoint_every": 8192
   },
   "curriculum": {
-    "level": 4,
-    "name": "dangerous-gaps",
-    "successes": 0,
+    "level": 5,
+    "name": "treacherous-terrain",
+    "successes": 4,
     "successes_required": 4,
     "window": 10,
-    "complete": false
+    "complete": true
   }
 }
