@@ -1,11 +1,11 @@
 {
-  "step": 449441,
-  "episodes": 2105,
-  "updates": 112356,
-  "seconds": 3592.070552099991,
+  "step": 524288,
+  "episodes": 2338,
+  "updates": 131064,
+  "seconds": 4211.028479899978,
   "key": [
-    1781242810,
-    2588588203
+    385879096,
+    871609707
   ],
   "curriculum": {
     "level": 4,
@@ -14,7 +14,7 @@
       false,
       false,
       false,
-      false,
+      true,
       false,
       false,
       false,
