@@ -16,7 +16,7 @@ import jax.numpy as jnp
 from jaxtyping import Array
 import optax
 
-from maton import offpolicy
+from maton import offpolicy, sessions
 from maton.layers import MLP
 from maton.offpolicy import Batch, OffPolicyConfig
 from maton.training import TrainingConfig
@@ -316,8 +316,9 @@ class TDMPC2:
         return TrainState(Model(world, policy), target_qs, world_optimizer, policy_optimizer, scale), metrics
 
 
-def train(env: Any, config: TDMPC2Config, training: TrainingConfig, output: str | Path, seed: int = 0):
-    return offpolicy.train(env, "tdmpc2", TDMPC2, config, training, output, seed)
+def train(env: Any, config: TDMPC2Config, training: TrainingConfig, output: str | Path, seed: int = 0,
+          pause=sessions.never):
+    return offpolicy.train(env, "tdmpc2", TDMPC2, config, training, output, seed, pause)
 
 
 def load_agent(path: str | Path) -> offpolicy.OffPolicyAgent:

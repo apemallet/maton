@@ -46,6 +46,62 @@ def test_legacy_jit_adapter():
     assert int(fn(2)) == 3
 
 
+def fake_runtime(monkeypatch):
+    elements, embodied, _ = dreamer._runtime()
+
+    class Agent:
+        def __init__(self, obs_space, act_space, config):
+            assert act_space['action'].shape == (2,)
+
+        def init_train(self, size):
+            return None
+
+        def init_policy(self, size):
+            return None
+
+        def stream(self, stream):
+            return stream
+
+        def policy(self, carry, obs, mode):
+            return carry, {'action': np.zeros((1, 2), np.float32)}, {}
+
+        def train(self, carry, batch):
+            return carry, {}, {'loss': np.array(1.)}
+
+        def save(self):
+            return {'params': {'weight': np.zeros(1)}}
+
+        def load(self, state):
+            self.loaded = state
+
+    class State(NamedTuple):
+        steps: object
+        reward: object
+        done: object
+        terminated: object
+        level: object
+        success: object
+
+    class Env:
+        action_size = 2
+        flat = TerrainConfig(block_frequency=0, gap_frequency=0)
+        curriculum = CurriculumConfig((Level("one", 2, flat), Level("two", 2, flat)))
+
+        def reset(self, key, level=0):
+            return State(jnp.array(0), jnp.array(0.), jnp.array(False), jnp.array(False),
+                         jnp.asarray(level), jnp.array(False))
+
+        def observation(self, state):
+            return jnp.array([state.steps], dtype=jnp.float32)
+
+        def step(self, state, action):
+            return State(state.steps + 1, jnp.array(1.), state.steps >= 1, jnp.array(False),
+                         state.level, state.steps >= 1)
+
+    monkeypatch.setattr(dreamer, '_runtime', lambda: (elements, embodied, Agent))
+    return Env
+
+
 def test_budget_and_checkpoint_units_exclude_episode_reset_bookkeeping(tmp_path, monkeypatch):
     elements, embodied, _ = dreamer._runtime()
 
@@ -129,3 +185,15 @@ def test_evaluation_uses_policy_prediction(monkeypatch):
     assert updated[-1] is action
     _, sampled, _ = model.policy(carry, {}, "train")
     assert np.array_equal(sampled["action"], [0.9])
+
+
+def test_pause_and_resume_keeps_budget_counters_and_curriculum(tmp_path, monkeypatch):
+    Env = fake_runtime(monkeypatch)
+    training = TrainingConfig(steps=8, checkpoint_every=3)
+    paused = dreamer.train(Env(), DreamerConfig(batch_length=2, train_every=2), training, tmp_path,
+                           pause=lambda step: step >= 4)
+    assert not paused["complete"] and paused["steps"] == 4 and not (tmp_path / "dreamer.pkl").exists()
+    resumed = dreamer.train(Env(), DreamerConfig(batch_length=2, train_every=2), training, tmp_path)
+    assert resumed["complete"] and resumed["steps"] == 8
+    assert resumed["episodes"] == 4 and resumed["curriculum"]["complete"]
+    assert (tmp_path / "dreamer.pkl").exists()

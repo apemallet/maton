@@ -7,6 +7,7 @@ from pathlib import Path
 from maton.algorithms import algorithm as lookup
 from maton.config import load_run, save_run
 from maton.jobs import Job
+from maton.sessions import Pause
 from maton.training import TrainingConfig
 
 
@@ -15,7 +16,10 @@ def main(argv: list[str] | None = None) -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     train = commands.add_parser("train", help="Train the job's algorithm")
     train.add_argument("--config", type=Path, required=True)
-    train.add_argument("--output", type=Path, required=True)
+    train.add_argument("--output", type=Path, required=True,
+                       help="New run directory, or an existing one with matching settings to resume")
+    train.add_argument("--hours", type=float, help="Pause after this much wall-clock time")
+    train.add_argument("--steps", type=int, help="Pause once this many total transitions are reached")
     rollout = commands.add_parser("rollout", help="Evaluate a saved checkpoint on fresh courses")
     rollout.add_argument("run", type=Path)
     rollout.add_argument("--checkpoint", type=Path)
@@ -36,10 +40,16 @@ def main(argv: list[str] | None = None) -> None:
         job = Job.load(args.config)
         config = job.config()
         env = config.environment()
-        save_run(config, args.output)
+        if (args.output / "run.json").exists():
+            if load_run(args.output).resolved() != config.resolved():
+                parser.error(f"{args.output} was trained with different settings; use a new output")
+        else:
+            save_run(config, args.output)
         trainer = lookup(config.algorithm).load()
-        result = trainer.train(env, config.trainer_config(), TrainingConfig(**config.training),
-                               args.output, config.seed)
+        pause = Pause(args.hours, args.steps)
+        with pause.catching_interrupt():
+            result = trainer.train(env, config.trainer_config(), TrainingConfig(**config.training),
+                                   args.output, config.seed, pause=pause)
         print(json.dumps(result, indent=2))
     elif args.command == "rollout":
         from maton.replay import record, summarize_episodes

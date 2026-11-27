@@ -19,6 +19,7 @@ import jax.numpy as jnp
 from jaxtyping import Array
 import numpy as np
 
+from maton import sessions
 from maton.curriculum import CurriculumProgress
 from maton.training import TrainingConfig
 
@@ -148,7 +149,9 @@ def _save(path: Path, name: str, model, metadata: dict[str, Any]) -> None:
 
 
 def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, training: TrainingConfig,
-          output: str | Path, seed: int = 0) -> dict[str, Any]:
+          output: str | Path, seed: int = 0, pause: Callable[[int], bool] = sessions.never) -> dict[str, Any]:
+    """Train to `training.steps`, resuming from `output/resume` when present; `pause(steps)`
+    ends the session early with resumable state saved."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     envs = config.num_envs
@@ -170,6 +173,21 @@ def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, train
     replay = Replay.create(rows, envs, observation.shape[-1], env.action_size)
     carry = learner.init_carry(envs)
     first = jnp.ones(envs, bool)
+
+    host: dict[str, Any] = dict(transitions=0, updates=0, episodes=0, debt=0.0, pretrained=False,
+                                refill_until=0, stored=0, episode_return=[0.0] * envs, seconds=0.0)
+    restored = sessions.load(output, (state, carry, states, observation, first, sessions.keys(key)))
+    if restored is not None:
+        (state, carry, states, observation, first, key_data), host = restored
+        key = sessions.unkeys(key_data)
+        curriculum.level, curriculum.successes, curriculum.complete = (
+            host["curriculum"]["level"], host["curriculum"]["successes"], host["curriculum"]["complete"])
+        saved = sessions.load(output, replay, "replay")
+        if saved is not None and saved[1]["step"] == host["transitions"]:
+            replay = saved[0]
+        else:  # New machine or crash: refill replay with the current policy before updating.
+            host["stored"], host["refill_until"] = 0, host["transitions"] + seeding
+        print(f"{name}: resuming at {host['transitions']}/{training.steps} transitions", flush=True)
 
     @partial(jax.jit, static_argnames="random", donate_argnames="replay")
     def collect(model, carry, states, observation, first, replay, key, level, random):
@@ -207,64 +225,81 @@ def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, train
                     episode_length=episode_length, config=asdict(config), training=asdict(training),
                     curriculum=curriculum.snapshot())
 
-    transitions = updates = episodes = 0
-    debt, pretrained = 0.0, False
-    episode_return = np.zeros(envs)
+    def checkpoint(with_replay: bool) -> None:
+        host.update(curriculum=dict(level=curriculum.level, successes=curriculum.successes,
+                                    complete=curriculum.complete),
+                    episode_return=episode_return.tolist(), seconds=prior_seconds + time.perf_counter() - started)
+        if with_replay:
+            sessions.save(output, replay, dict(step=host["transitions"]), "replay")
+        sessions.save(output, (state, carry, states, observation, first, sessions.keys(key)), host)
+
+    episode_return = np.asarray(host["episode_return"], float)
     window: dict[str, Any] = dict(returns=[], successes=0, metrics=[])
     record: dict[str, Any] = {}
-    started = time.perf_counter()
-    with (output / "metrics.jsonl").open("w") as log:
-        while transitions < training.steps:
+    prior_seconds, session_start, started = host["seconds"], host["transitions"], time.perf_counter()
+    complete = host["transitions"] >= training.steps
+    with (output / "metrics.jsonl").open("a" if restored else "w") as log:
+        while not complete:
+            transitions = host["transitions"]
             key, collect_key, update_key = jax.random.split(key, 3)
             carry, states, observation, first, replay, info = collect(
                 state.model, carry, states, observation, first, replay, collect_key,
                 jnp.asarray(curriculum.level, jnp.int32), random=transitions < seeding)
             previous, transitions = transitions, transitions + envs
+            host["transitions"], host["stored"] = transitions, host["stored"] + 1
             reward, done, success, level = jax.device_get(info)
             episode_return += reward
             for index in np.flatnonzero(done):
-                episodes += 1
+                host["episodes"] += 1
                 window["returns"].append(float(episode_return[index]))
                 window["successes"] += int(success[index])
                 curriculum.record(bool(success[index]), int(level[index]))
                 episode_return[index] = 0.0
-            if transitions >= seeding and transitions // envs >= learner.horizon:
-                if not pretrained:  # One burst over the seed data, then the steady ratio.
-                    count, pretrained = max(1, round(seeding * config.update_ratio)), True
+            ready = transitions >= max(seeding, host["refill_until"]) and host["stored"] >= learner.horizon
+            if ready:
+                if not host["pretrained"]:  # One burst over the seed data, then the steady ratio.
+                    count, host["pretrained"] = max(1, round(seeding * config.update_ratio)), True
                 else:
-                    debt += envs * config.update_ratio
-                    count = int(debt)
-                    debt -= count
+                    host["debt"] += envs * config.update_ratio
+                    count = int(host["debt"])
+                    host["debt"] -= count
                 if count:
                     state, metrics = update(state, replay, update_key, jnp.asarray(count, jnp.int32))
-                    updates += count
+                    host["updates"] += count
                     window["metrics"].append((count, jax.device_get(metrics)))
-            final = transitions == training.steps
-            if transitions // config.log_every > previous // config.log_every or final:
+            complete = transitions >= training.steps
+            if transitions // config.log_every > previous // config.log_every or complete:
                 elapsed = time.perf_counter() - started
-                record = dict(steps=transitions, updates=updates, episodes=episodes,
+                record = dict(steps=transitions, updates=host["updates"], episodes=host["episodes"],
                               episode_return=float(np.mean(window["returns"])) if window["returns"] else None,
-                              successes=window["successes"], steps_per_second=transitions / elapsed,
+                              successes=window["successes"],
+                              steps_per_second=(transitions - session_start) / elapsed,
                               curriculum=curriculum.snapshot())
                 if window["metrics"]:
                     weights = np.array([count for count, _ in window["metrics"]], float)
-                    for name_ in window["metrics"][0][1]:
-                        values = np.array([float(row[name_]) for _, row in window["metrics"]])
+                    for metric in window["metrics"][0][1]:
+                        values = np.array([float(row[metric]) for _, row in window["metrics"]])
                         if not np.isfinite(values).all():
-                            raise FloatingPointError(f"Nonfinite {name} metric {name_} at step {transitions}")
-                        record[name_] = float(np.average(values, weights=weights))
+                            raise FloatingPointError(f"Nonfinite {name} metric {metric} at step {transitions}")
+                        record[metric] = float(np.average(values, weights=weights))
                 log.write(json.dumps(record) + "\n")
                 log.flush()
                 window = dict(returns=[], successes=0, metrics=[])
-                print(f"{name} {transitions}/{training.steps}: updates={updates} episodes={episodes} "
-                      f"level={curriculum.level + 1} {record['steps_per_second']:.0f} steps/s", flush=True)
-            if training.checkpoint_due(previous, transitions) or final:
+                print(f"{name} {transitions}/{training.steps}: updates={host['updates']} "
+                      f"episodes={host['episodes']} level={curriculum.level + 1} "
+                      f"{record['steps_per_second']:.0f} steps/s", flush=True)
+            if training.checkpoint_due(previous, transitions) or complete:
                 model = jax.device_get(state.model)
                 _save(output / "checkpoints" / f"step-{transitions:08d}.eqx", name, model, metadata(transitions))
                 _save(output / f"{name}.eqx", name, model, metadata(transitions))
-    seconds = time.perf_counter() - started
-    summary = dict(algorithm=name, steps=transitions, updates=updates, episodes=episodes,
-                   seed_steps=seeding, seconds=seconds, steps_per_second=transitions / seconds,
+                checkpoint(with_replay=False)  # crash safety; resuming then refills replay
+            if not complete and pause(transitions):
+                checkpoint(with_replay=True)
+                break
+    seconds = prior_seconds + time.perf_counter() - started
+    summary = dict(algorithm=name, steps=host["transitions"], complete=complete, updates=host["updates"],
+                   episodes=host["episodes"], seed_steps=seeding, seconds=seconds,
+                   session_steps_per_second=(host["transitions"] - session_start) / max(time.perf_counter() - started, 1e-9),
                    last=record, curriculum=curriculum.snapshot())
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary

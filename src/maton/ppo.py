@@ -6,7 +6,8 @@ import json
 import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+import time
+from typing import Any, Callable
 
 import einx
 import equinox as eqx
@@ -16,6 +17,7 @@ import numpy as np
 import optax
 
 from maton.training import TrainingConfig
+from maton import sessions
 from maton.curriculum import CurriculumProgress
 
 
@@ -175,8 +177,10 @@ def load_agent(path: str | Path) -> PPOAgent:
     return PPOAgent(load_policy(path))
 
 
-def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | Path, seed: int = 0):
-    """Train PPO and retain inference snapshots after each configured update."""
+def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | Path, seed: int = 0,
+          pause: Callable[[int], bool] = sessions.never):
+    """Train PPO, resuming from `output/resume` when present; `pause(steps)` ends the
+    session after an update with resumable state saved."""
     if training.steps % config.num_envs:
         raise ValueError("training.steps must be divisible by ppo.num_envs")
     output = Path(output)
@@ -195,6 +199,14 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
     optimizer = optax.chain(optax.clip_by_global_norm(config.max_grad_norm),
                            optax.adam(training.learning_rate, eps=1e-5))
     optimizer_state = optimizer.init(eqx.filter(policy, eqx.is_inexact_array))
+    host: dict[str, Any] = dict(transitions=0, iteration=0, episode_returns=[0.0] * config.num_envs,
+                                completed_returns=[], last=None, seconds=0.0)
+    restored = sessions.load(output, (policy, optimizer_state, states, observations, key))
+    if restored is not None:
+        (policy, optimizer_state, states, observations, key), host = restored
+        curriculum.level, curriculum.successes, curriculum.complete = (
+            host["curriculum"]["level"], host["curriculum"]["successes"], host["curriculum"]["complete"])
+        print(f"PPO: resuming at {host['transitions']}/{training.steps} transitions", flush=True)
 
     @eqx.filter_jit
     def update(policy, optimizer_state, batch):
@@ -204,18 +216,29 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
         return policy, optimizer_state, jnp.array((loss, *metrics, optax.tree.norm(grads)))
 
     # Python drives the rollout: MJX compiles one batched step, not a large unrolled graph.
-    records = []
-    transitions = 0
-    episode_returns = np.zeros(config.num_envs)
-    completed_returns = []
-    with (output / "metrics.csv").open("w", newline="") as stream:
+    transitions = host["transitions"]
+    episode_returns = np.asarray(host["episode_returns"], float)
+    completed_returns: list[float] = host["completed_returns"]
+    record: dict[str, Any] | None = host["last"]
+    prior_seconds, started = host["seconds"], time.perf_counter()
+
+    def checkpoint(iteration: int) -> None:
+        host.update(transitions=transitions, iteration=iteration, episode_returns=episode_returns.tolist(),
+                    completed_returns=completed_returns, last=record,
+                    seconds=prior_seconds + time.perf_counter() - started,
+                    curriculum=dict(level=curriculum.level, successes=curriculum.successes,
+                                    complete=curriculum.complete))
+        sessions.save(output, (policy, optimizer_state, states, observations, key), host)
+
+    with (output / "metrics.csv").open("a" if restored else "w", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=["update", "steps", "reward_mean", "episodes",
                                                     "episode_return_mean", "loss", "actor_loss",
                                                     "value_loss", "entropy", "approx_kl", "grad_norm",
                                                     "curriculum_level", "curriculum_successes", "curriculum_complete"])
-        writer.writeheader()
+        if not restored:
+            writer.writeheader()
         total_updates = (training.steps + config.num_envs * config.rollout_steps - 1) // (config.num_envs * config.rollout_steps)
-        for iteration in range(1, total_updates + 1):
+        for iteration in range(host["iteration"] + 1, total_updates + 1):
             rollout = []
             rollout_steps = min(config.rollout_steps, (training.steps - transitions) // config.num_envs)
             for _ in range(rollout_steps):
@@ -262,7 +285,7 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
                 raise FloatingPointError(f"Nonfinite PPO update {iteration}: {metrics}")
             previous_transitions = transitions
             transitions += config.num_envs * rollout_steps
-            record: dict[str, Any] = dict(zip(("loss", "actor_loss", "value_loss", "entropy", "approx_kl", "grad_norm"),
+            record = dict(zip(("loss", "actor_loss", "value_loss", "entropy", "approx_kl", "grad_norm"),
                               map(float, metrics), strict=True))
             record.update(update=iteration, steps=transitions, reward_mean=float(jnp.mean(rewards)),
                           curriculum_level=curriculum.level, curriculum_successes=curriculum.successes,
@@ -271,13 +294,18 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
                           episode_return_mean=float(np.mean(completed_returns)) if completed_returns else 0.0)
             writer.writerow(record)
             stream.flush()
-            records.append(record)
             print(f"PPO {iteration}/{total_updates}: steps={transitions} loss={record['loss']:.4f}", flush=True)
             if training.checkpoint_due(previous_transitions, transitions) or transitions == training.steps:
                 _save(policy, output / "checkpoints" / f"step-{transitions:08d}.eqx", transitions, config, training, curriculum)
                 _save(policy, output / "policy.eqx", transitions, config, training, curriculum)
-    summary = {"algorithm": "ppo", "steps": transitions, "updates": total_updates,
-               "episodes": len(completed_returns), "last": records[-1], "curriculum": curriculum.snapshot()}
+                checkpoint(iteration)
+            if transitions < training.steps and pause(transitions):
+                checkpoint(iteration)
+                break
+    summary = {"algorithm": "ppo", "steps": transitions, "complete": transitions >= training.steps,
+               "updates": host["iteration"] if transitions < training.steps else total_updates,
+               "episodes": len(completed_returns), "seconds": prior_seconds + time.perf_counter() - started,
+               "last": record, "curriculum": curriculum.snapshot()}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary
 

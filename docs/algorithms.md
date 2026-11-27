@@ -15,8 +15,9 @@ dependencies from it.
 
 1. Create `src/maton/<name>.py` exposing:
    - `Config`: frozen dataclass for the job's `[<name>]` table; validate in `__post_init__`.
-   - `train(env, config, training, output, seed) -> dict`: honour `training.steps` and
-     `training.checkpoint_due`; record curriculum progress; write a JSON-serialisable summary.
+   - `train(env, config, training, output, seed, pause) -> dict`: honour `training.steps` and
+     `training.checkpoint_due`; resume from `output/resume/` (see `sessions.py`); stop when
+     `pause(steps)` is true; return a JSON summary with `steps`, `complete`, `curriculum`, `last`.
    - `load_agent(checkpoint) -> Agent`: `reset()`, `__call__(obs) -> action`, `curriculum_level`.
 2. Add one `Algorithm(...)` entry: checkpoint layout, shared modules, and non-Python assets.
    These become Snakemake training inputs.

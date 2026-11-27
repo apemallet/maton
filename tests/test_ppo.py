@@ -119,3 +119,17 @@ def test_configurable_initial_exploration():
     np.testing.assert_allclose(jnp.exp(policy.log_std), 0.2)
     with pytest.raises(ValueError, match='initial_std'):
         PPOConfig(initial_std=0.0)
+
+
+def test_pause_and_resume_matches_uninterrupted_training(tmp_path):
+    config = PPOConfig(num_envs=2, rollout_steps=4, epochs=1, minibatch_size=4, hidden_size=8)
+    training = TrainingConfig(steps=32, checkpoint_every=16)
+    straight = train(ToyEnv(), config, training, tmp_path / "straight", seed=4)
+    paused = train(ToyEnv(), config, training, tmp_path / "paused", seed=4, pause=lambda steps: steps >= 8)
+    assert not paused["complete"] and paused["steps"] == 8
+    resumed = train(ToyEnv(), config, training, tmp_path / "paused", seed=4)
+    assert resumed["complete"] and resumed["episodes"] == straight["episodes"]
+    np.testing.assert_array_equal(load_policy(tmp_path / "straight").actor.layers[0].weight,
+                                  load_policy(tmp_path / "paused").actor.layers[0].weight)
+    assert (tmp_path / "paused/metrics.csv").read_text() .count("update") == 1  # one header
+    assert len((tmp_path / "paused/metrics.csv").read_text().splitlines()) == 5

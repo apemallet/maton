@@ -12,6 +12,11 @@ just test
 just smoke
 just job smoke-dreamer
 
+# Train in sessions: 2 hours now, resume later or on another machine.
+just train biped-tdmpc2-s0 2
+just status
+just share biped-tdmpc2-s0
+
 # Build the full experiment, or request one asset and its dependencies.
 just job biped-ppo-s0
 just build data/jobs/biped-ppo-s0/render/level-1/episode-0000.mp4 -n

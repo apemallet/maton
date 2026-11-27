@@ -16,7 +16,8 @@ trains the upstream world model, imagination policy, and value function.
 - Upright course finishes advance the curriculum; falls may recover before timeout.
 - Checkpoints include curriculum progress and default evaluation level.
 - Checkpoints contain model, optimizer, RNG counters, and architecture settings.
-  Replay is intentionally transient; this harness starts fresh training runs.
+- Sessions resume weights, optimizer, counters, and curriculum; replay restarts empty
+  and the interrupted episode is dropped.
 - Evaluation restores a recurrent policy and uses the upstream action distribution
   prediction (mean). Training keeps the upstream stochastic policy. Reset between
   episodes to reset recurrent state and posterior sampling RNG.

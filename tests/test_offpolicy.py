@@ -9,7 +9,7 @@ import pytest
 from maton.curriculum import CurriculumConfig, Level
 from maton.offpolicy import OffPolicyConfig, Replay, seed_steps
 from maton.terrain import TerrainConfig
-from maton import tdmpc2
+from maton import sac, tdmpc2
 from maton.training import TrainingConfig
 
 
@@ -102,3 +102,32 @@ def test_curriculum_advances_on_successes(tmp_path):
     result = tdmpc2.train(FinishingEnv(), tdmpc2.TDMPC2Config(**TINY), TrainingConfig(steps=8), tmp_path)
     assert result["curriculum"]["level"] == 1 and result["curriculum"]["complete"]
     assert tdmpc2.load_agent(tmp_path).curriculum_level == 1
+
+
+@pytest.mark.parametrize("module", [tdmpc2, sac])
+def test_pause_and_resume_matches_uninterrupted_training(tmp_path, module):
+    config = (tdmpc2.TDMPC2Config(**TINY) if module is tdmpc2 else
+              sac.SACConfig(num_envs=2, batch_size=8, seed_steps=8, log_every=8, hidden_size=16))
+    training = TrainingConfig(steps=24, checkpoint_every=10)
+    straight = module.train(ToyEnv(), config, training, tmp_path / "straight", seed=5)
+    paused = module.train(ToyEnv(), config, training, tmp_path / "paused", seed=5, pause=lambda steps: steps >= 12)
+    assert not paused["complete"] and paused["steps"] == 12
+    resumed = module.train(ToyEnv(), config, training, tmp_path / "paused", seed=5)
+    assert resumed["complete"] and resumed["updates"] == straight["updates"]
+    assert resumed["episodes"] == straight["episodes"]
+    name = module.__name__.split(".")[-1]
+    for left, right in zip(jax.tree.leaves(eqx.tree_deserialise_leaves(tmp_path / "straight" / f"{name}.eqx", module.load_agent(tmp_path / "straight").model)),
+                           jax.tree.leaves(module.load_agent(tmp_path / "paused").model)):
+        np.testing.assert_array_equal(left, right)
+    rows = (tmp_path / "paused" / "metrics.jsonl").read_text().splitlines()
+    assert len(rows) == len((tmp_path / "straight" / "metrics.jsonl").read_text().splitlines())
+
+
+def test_resume_without_replay_refills_before_updating(tmp_path):
+    config = tdmpc2.TDMPC2Config(**TINY)
+    training = TrainingConfig(steps=24)
+    tdmpc2.train(ToyEnv(), config, training, tmp_path, pause=lambda steps: steps >= 12)
+    for path in (tmp_path / "resume").glob("replay.*"):  # e.g. resuming on another machine
+        path.unlink()
+    result = tdmpc2.train(ToyEnv(), config, training, tmp_path)
+    assert result["complete"] and result["updates"] == 12 + 6  # no updates while 8 transitions refill (steps 14–18)

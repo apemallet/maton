@@ -7,11 +7,15 @@ import json
 from pathlib import Path
 import pickle
 import sys
+import time
 import types
-from typing import Any
+from typing import Any, Callable
 
 import jax
+import jax.numpy as jnp
 import numpy as np
+
+from maton import sessions
 
 from maton.training import TrainingConfig
 from maton.curriculum import CurriculumProgress
@@ -196,8 +200,19 @@ def load_agent(checkpoint: Path | str) -> DreamerPolicy:
     return DreamerPolicy(agent, curriculum_level=payload["curriculum"]["level"])
 
 
-def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Path, seed: int = 0):
-    """Collect MJX transitions and optimize upstream world model and actor/value."""
+def _save_resume(agent, output: Path, host: dict[str, Any]) -> None:
+    folder = sessions.directory(output)
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / "agent.tmp").open("wb") as file:
+        pickle.dump(agent.save(), file, protocol=5)
+    (folder / "agent.tmp").replace(folder / "agent.pkl")
+    (folder / "state.json").write_text(json.dumps(host, indent=2) + "\n")
+
+
+def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Path, seed: int = 0,
+          pause: Callable[[int], bool] = sessions.never):
+    """Collect MJX transitions and optimize upstream world model and actor/value. Resumes
+    weights, optimizer, counters, and curriculum from `output/resume`; replay starts empty."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     _, embodied, Agent = _runtime()
@@ -218,11 +233,32 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
     train_carry = agent.init_train(config.batch_size)
     policy_carry = agent.init_policy(1)
     obs = _observation(vector, first=True)
-    episode_return, episodes, updates = 0.0, 0, 0
+    episode_return, episodes, updates, step, prior_seconds = 0.0, 0, 0, 0, 0.0
+    resumed = sessions.resuming(output)
+    if resumed:
+        host = json.loads((sessions.directory(output) / "state.json").read_text())
+        with (sessions.directory(output) / "agent.pkl").open("rb") as file:
+            agent.load(pickle.load(file))
+        step, episodes, updates, prior_seconds = host["step"], host["episodes"], host["updates"], host["seconds"]
+        curriculum.level, curriculum.successes, curriculum.complete = (
+            host["curriculum"]["level"], host["curriculum"]["successes"], host["curriculum"]["complete"])
+        key = sessions.unkeys(jnp.asarray(host["key"], jnp.uint32))
+        key, reset_key = jax.random.split(key)
+        state = reset_fn(reset_key, curriculum.level)
+        obs = _observation(observation_fn(state), first=True)
+        print(f"Dreamer: resuming at {step}/{training.steps} transitions with empty replay", flush=True)
+    started = time.perf_counter()
+
+    def checkpoint() -> None:
+        _save_resume(agent, output, dict(step=step, episodes=episodes, updates=updates,
+                                         seconds=prior_seconds + time.perf_counter() - started,
+                                         key=np.asarray(sessions.keys(key)).tolist(),
+                                         curriculum=dict(level=curriculum.level, successes=curriculum.successes,
+                                                         complete=curriculum.complete)))
+
     step_fn = jax.jit(env.step)
     metrics_file = output / "metrics.jsonl"
-    with metrics_file.open("w") as metrics:
-        step = 0
+    with metrics_file.open("a" if resumed else "w") as metrics:
         while step < training.steps:
             policy_carry, actions, extras = agent.policy(
                 policy_carry, {k: v[None] for k, v in obs.items()}, mode="train")
@@ -261,8 +297,14 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
                 metrics.flush()
             if training.checkpoint_due(step - 1, step):
                 _save(agent, output / f"dreamer-{step:08d}.pkl", config, training, vector.size, env.action_size, seed, step, curriculum)
-        _save(agent, output / "dreamer.pkl", config, training, vector.size, env.action_size, seed, training.steps, curriculum)
-    summary = {"steps": training.steps, "updates": updates, "episodes": episodes,
+                checkpoint()
+            if step < training.steps and pause(step):
+                checkpoint()
+                break
+        if step >= training.steps:
+            _save(agent, output / "dreamer.pkl", config, training, vector.size, env.action_size, seed, training.steps, curriculum)
+    summary = {"steps": step, "complete": step >= training.steps, "updates": updates, "episodes": episodes,
+               "seconds": prior_seconds + time.perf_counter() - started,
                "checkpoint": str(output / "dreamer.pkl"), "upstream_commit": UPSTREAM_COMMIT,
                "curriculum": curriculum.snapshot()}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")

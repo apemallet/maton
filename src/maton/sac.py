@@ -15,7 +15,7 @@ import jax.numpy as jnp
 from jaxtyping import Array
 import optax
 
-from maton import offpolicy
+from maton import offpolicy, sessions
 from maton.layers import MLP
 from maton.offpolicy import Batch, OffPolicyConfig
 from maton.training import TrainingConfig
@@ -151,8 +151,9 @@ class SAC:
                           log_alpha, alpha_optimizer), metrics
 
 
-def train(env: Any, config: SACConfig, training: TrainingConfig, output: str | Path, seed: int = 0):
-    return offpolicy.train(env, "sac", SAC, config, training, output, seed)
+def train(env: Any, config: SACConfig, training: TrainingConfig, output: str | Path, seed: int = 0,
+          pause=sessions.never):
+    return offpolicy.train(env, "sac", SAC, config, training, output, seed, pause)
 
 
 def load_agent(path: str | Path) -> offpolicy.OffPolicyAgent:

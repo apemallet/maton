@@ -38,7 +38,7 @@ Falls never terminate an episode.
 `maton train --config configs/jobs/biped-ppo-s0.toml --output data/RUN`
 saves resolved settings in `run.json`. Outputs must be new directories.
 PPO checkpoints hold inference weights; Dreamer holds agent/optimizer state.
-Neither harness currently resumes training/replay from an existing run.
+Training resumes from saved progress; see [sessions](workflow.md#sessions-pause-resume-share).
 
 `maton rollout RUN --checkpoint FILE --output EVAL --episodes 3 --seed 1000`
 evaluates fresh seeded courses with recurrent state reset between episodes.

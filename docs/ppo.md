@@ -17,5 +17,5 @@ Metrics and checkpoint metadata include curriculum progress.
 Training writes `metrics.csv`, `summary.json`, `policy.eqx`, and numbered inference
 snapshots in `checkpoints/`. Every snapshot has JSON model metadata.
 `load_agent(path)` (run directory or snapshot) returns the evaluation controller;
-`load_policy(path)` plus `action(policy, obs)` give the raw network and deterministic action. Snapshots contain model weights, not
-optimizer state; training starts a fresh run.
+`load_policy(path)` plus `action(policy, obs)` give the raw network and deterministic action. Snapshots contain model weights only;
+resumable state (with optimizer) lives in `resume/`.
