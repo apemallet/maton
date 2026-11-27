@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from maton.algorithms import algorithm as lookup
 from maton.config import load_run, save_run
 from maton.jobs import Job
 from maton.training import TrainingConfig
@@ -12,7 +13,7 @@ from maton.training import TrainingConfig
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Planar MJX obstacle walker")
     commands = parser.add_subparsers(dest="command", required=True)
-    train = commands.add_parser("train", help="Train a small PPO or DreamerV3 agent")
+    train = commands.add_parser("train", help="Train the job's algorithm")
     train.add_argument("--config", type=Path, required=True)
     train.add_argument("--output", type=Path, required=True)
     rollout = commands.add_parser("rollout", help="Evaluate a saved checkpoint on fresh courses")
@@ -35,38 +36,26 @@ def main(argv: list[str] | None = None) -> None:
         job = Job.load(args.config)
         config = job.config()
         env = config.environment()
-        save_run(config, job.algorithm, args.output)
-        training = TrainingConfig(**config.training)
-        if job.algorithm == "ppo":
-            from maton.ppo import PPOConfig, train as train_ppo
-            result = train_ppo(env, PPOConfig(**config.ppo), training, args.output, config.seed)
-        else:
-            from maton.dreamer import DreamerConfig, train as train_dreamer
-            result = train_dreamer(env, DreamerConfig(**config.dreamer), training, args.output, config.seed)
+        save_run(config, args.output)
+        trainer = lookup(config.algorithm).load()
+        result = trainer.train(env, config.trainer_config(), TrainingConfig(**config.training),
+                               args.output, config.seed)
         print(json.dumps(result, indent=2))
     elif args.command == "rollout":
         from maton.replay import record, summarize_episodes
-        config, algorithm = load_run(args.run)
+        config = load_run(args.run)
         if args.episodes < 1:
             parser.error("--episodes must be positive")
-        if algorithm == "ppo":
-            from maton.ppo import load_policy, action
-            policy = load_policy(args.checkpoint or args.run / "policy.eqx")
-            level = policy.curriculum_level
-            act = lambda obs: action(policy, obs)
-        else:
-            from maton.dreamer import load_policy
-            act = load_policy(args.checkpoint or args.run / "dreamer.pkl")
-            level = act.curriculum_level
+        spec = lookup(config.algorithm)
+        agent = spec.load().load_agent(args.checkpoint or spec.checkpoint(args.run))
         env = config.environment()
-        level = args.level - 1 if args.level is not None else level
+        level = args.level - 1 if args.level is not None else agent.curriculum_level
         if not 0 <= level < len(env.curriculum.levels):
             parser.error("--level is outside this curriculum")
         episodes = []
         for index in range(args.episodes):
-            if hasattr(act, "reset"):
-                act.reset()
-            episodes.append(record(env, act, args.output / f"episode-{index:04d}", args.seed + index, level))
+            agent.reset()
+            episodes.append(record(env, agent, args.output / f"episode-{index:04d}", args.seed + index, level))
         print(json.dumps(summarize_episodes(episodes, args.output / "summary.json"), indent=2))
     elif args.command == "view-walker":
         from maton.preview import preview_walker

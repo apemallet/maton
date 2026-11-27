@@ -8,7 +8,7 @@ See [workflow](workflow.md) for names, artifact paths, evaluations, and rebuild 
 
 | Option | Default | Meaning                                                                                                  |
 | ------ | ------- | -------------------------------------------------------------------------------------------------------- |
-| `algorithm` | required | `ppo` or `dreamer`; include only that trainer’s table. |
+| `algorithm` | required | A registered [trainer](algorithms.md); include only that trainer’s table. |
 | `walker` | required | Walker TOML path, relative to the job TOML. Resolved structure is embedded in `run.json`; see [walker structure](walker.md). |
 | `curriculum` | required | Curriculum TOML path, relative to the job TOML. Resolved levels are embedded in `run.json`. |
 | `seed` | `0`     | Nonnegative integer seed for policy initialization, sampling, and training courses. |

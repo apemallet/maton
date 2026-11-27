@@ -50,9 +50,9 @@ def test_curriculum_reference_is_relative_and_snapshot_is_self_contained(tmp_pat
     job.write_text(f'algorithm = "ppo"\nwalker = "{walker}"\ncurriculum = "course.toml"\n')
     monkeypatch.chdir(tmp_path)
     config = Config.load(job)
-    save_run(config, "ppo", tmp_path / "run")
+    save_run(config, tmp_path / "run")
     reference.unlink()
-    restored, _ = load_run(tmp_path / "run")
+    restored = load_run(tmp_path / "run")
     assert restored.resolved() == config.resolved()
 
 

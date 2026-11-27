@@ -158,6 +158,23 @@ def load_policy(path: str | Path) -> Policy:
     return eqx.tree_deserialise_leaves(path, policy)
 
 
+class PPOAgent:
+    """Deterministic evaluation controller: the tanh of the actor mean."""
+    def __init__(self, policy: Policy):
+        self.policy = policy
+        self.curriculum_level = policy.curriculum_level
+
+    def reset(self) -> None:
+        pass
+
+    def __call__(self, observation) -> np.ndarray:
+        return np.asarray(action(self.policy, observation))
+
+
+def load_agent(path: str | Path) -> PPOAgent:
+    return PPOAgent(load_policy(path))
+
+
 def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | Path, seed: int = 0):
     """Train PPO and retain inference snapshots after each configured update."""
     if training.steps % config.num_envs:
@@ -263,3 +280,6 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
                "episodes": len(completed_returns), "last": records[-1], "curriculum": curriculum.snapshot()}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary
+
+
+Config = PPOConfig

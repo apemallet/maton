@@ -8,6 +8,8 @@ import re
 from typing import Any
 import tomllib
 
+from maton.algorithms import algorithm as lookup
+
 
 NAME = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 
@@ -63,8 +65,7 @@ class Job:
             raise ValueError('Job names must use lowercase kebab-case')
         values = read_toml(path)
         algorithm = values.pop('algorithm', None)
-        if algorithm not in ('ppo', 'dreamer'):
-            raise ValueError('Job algorithm must be ppo or dreamer')
+        lookup(algorithm)
         protocols = values.pop('evaluations', {})
         if not isinstance(protocols, dict):
             raise ValueError('evaluations must be a table of named protocols')
@@ -98,14 +99,11 @@ class Job:
 
     def config(self):
         from maton.config import Config
-        return Config.from_values(self.settings, self.path)
+        return Config.from_values(self.algorithm, self.settings, self.path)
 
     def checkpoint(self, train: Path, evaluation: Evaluation) -> Path:
-        if evaluation.checkpoint == 'final':
-            return train / ('policy.eqx' if self.algorithm == 'ppo' else 'dreamer.pkl')
-        step = evaluation.checkpoint.removeprefix('step-')
-        return (train / 'checkpoints' / f'step-{step}.eqx' if self.algorithm == 'ppo'
-                else train / f'dreamer-{step}.pkl')
+        step = None if evaluation.checkpoint == 'final' else evaluation.checkpoint.removeprefix('step-')
+        return lookup(self.algorithm).checkpoint(train, step)
 
     def assert_training_identity(self, train: Path) -> None:
         provenance = train / 'provenance.json'

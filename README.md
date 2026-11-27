@@ -32,5 +32,5 @@ from those trajectories without loading a policy.
 See [workflow and naming](docs/workflow.md) for targets, rebuild policy, and
 execution profiles; [configuration](docs/config.md) lists model and environment options.
 
-See [environment and replay](docs/overview.md), [DreamerV3](docs/dreamer.md), and
-[PPO](docs/ppo.md).
+See [environment and replay](docs/overview.md) and the [trainer registry](docs/algorithms.md):
+[DreamerV3](docs/dreamer.md) and [PPO](docs/ppo.md).

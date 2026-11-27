@@ -11,13 +11,14 @@ def test_root_configs_and_resolved_snapshot(tmp_path):
     assert len(config.resolved()["curriculum"]["levels"]) == 6
     assert config.resolved()["training"]["steps"] == 16
     output = tmp_path / "run"
-    save_run(config, "ppo", output)
-    restored, algorithm = load_run(output)
-    assert algorithm == "ppo"
+    save_run(config, output)
+    restored = load_run(output)
+    assert restored.algorithm == "ppo"
     assert restored.resolved() == config.resolved()
+    assert "dreamer" not in json.loads((output / "run.json").read_text())
     assert json.loads((output / "run.json").read_text())["env"]["lidar_count"] == 9
     with pytest.raises(FileExistsError):
-        save_run(config, "ppo", output)
+        save_run(config, output)
     Config.load("configs/jobs/biped-ppo-s0.toml")
 
 
@@ -44,9 +45,9 @@ def test_walker_reference_is_relative_and_snapshot_is_self_contained(tmp_path):
     config = Config.load(job)
     assert config.environment().action_size == 8
     output = tmp_path / "run"
-    save_run(config, "ppo", output)
+    save_run(config, output)
     structure.unlink()
-    restored, _ = load_run(output)
+    restored = load_run(output)
     assert restored.resolved() == config.resolved()
     assert restored.environment().action_size == 8
 
@@ -56,3 +57,13 @@ def test_job_requires_walker(tmp_path):
     job.write_text('algorithm = "ppo"\ncurriculum = "unused.toml"\n')
     with pytest.raises(ValueError, match="walker"):
         Config.load(job)
+
+
+def test_legacy_snapshot_with_every_trainer_table_loads(tmp_path):
+    config = Config.load("configs/jobs/smoke-ppo.toml")
+    output = tmp_path / "run"
+    save_run(config, output)
+    values = json.loads((output / "run.json").read_text())
+    values["dreamer"] = {"hidden": 32}
+    (output / "run.json").write_text(json.dumps(values))
+    assert load_run(output).resolved() == config.resolved()

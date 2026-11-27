@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from maton.algorithms import ALGORITHMS
 from maton.jobs import Evaluation, Job, fingerprint
 from maton.workflow import staged_directory
 
@@ -22,7 +23,7 @@ def test_all_jobs_resolve_with_only_their_selected_trainer():
     for path in Path('configs/jobs').glob('*.toml'):
         job = Job.load(path)
         assert job.config().resolved()['training']['steps'] > 0
-        assert ({'ppo', 'dreamer'} - {job.algorithm}).isdisjoint(job.settings)
+        assert (set(ALGORITHMS) - {job.algorithm}).isdisjoint(job.settings)
 
 
 def test_stage_fingerprints_and_immutable_training(tmp_path):

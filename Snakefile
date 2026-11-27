@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from maton.algorithms import algorithm
 from maton.jobs import Job, NAME, fingerprint
 from maton.talk import media
 
@@ -40,12 +41,9 @@ def render_input(wildcards):
     return root
 
 
-def training_sources(algorithm):
-    modules = ["jobs", "config", "cli", "workflow", "training", "env", "walker", "curriculum", "terrain", algorithm]
-    paths = [f"src/maton/{module}.py" for module in modules]
-    if algorithm == "dreamer":
-        paths += ["src/maton/assets/dreamer_defaults.yaml"]
-    return paths
+def training_sources(name):
+    modules = ["algorithms", "jobs", "config", "cli", "workflow", "training", "env", "walker", "curriculum", "terrain"]
+    return [f"src/maton/{module}.py" for module in modules] + algorithm(name).sources()
 
 
 def targets(name):

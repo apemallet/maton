@@ -180,7 +180,7 @@ class DreamerPolicy:
         return np.clip(np.asarray(action["action"][0], np.float32), -1, 1)
 
 
-def load_policy(checkpoint: Path | str) -> DreamerPolicy:
+def load_agent(checkpoint: Path | str) -> DreamerPolicy:
     """Load a trusted local checkpoint (pickle); use reset() for each episode."""
     checkpoint = Path(checkpoint)
     with checkpoint.open("rb") as file:
@@ -267,3 +267,6 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
                "curriculum": curriculum.snapshot()}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary
+
+
+Config = DreamerConfig
