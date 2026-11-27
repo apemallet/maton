@@ -1,0 +1,75 @@
+<mujoco model="basic">
+  <compiler angle="radian"/>
+
+  <option timestep="0.01" solver="CG" iterations="6" ls_iterations="4"/>
+
+  <visual>
+    <global offwidth="960" offheight="540"/>
+  </visual>
+
+  <default>
+    <geom contype="2" friction="0.9 0.01 0.001"/>
+  </default>
+
+  <worldbody>
+    <geom name="ground0" size="1.5 0.6 10.25" pos="-0.5 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground1" size="0.188224 0.6 10.25" pos="1.18822 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground2" size="0.123552 0.6 7.11492" pos="1.5 0 -13.3851" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground3" size="0.188224 0.6 10.25" pos="1.81178 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground4" size="0.16851 0.6 10.25" pos="2.16851 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground5" size="0.162981 0.6 10.25" pos="2.5 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground6" size="0.16851 0.6 10.25" pos="2.83149 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground7" size="0.166018 0.6 10.25" pos="3.16602 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground8" size="0.167964 0.6 7.51081" pos="3.5 0 -12.9892" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground9" size="0.166018 0.6 10.25" pos="3.83398 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground10" size="0.202614 0.6 10.25" pos="4.20261 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground11" size="0.0947719 0.6 10.3173" pos="4.5 0 -10.1827" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground12" size="0.202614 0.6 10.25" pos="4.79739 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground13" size="0.198259 0.6 10.25" pos="5.19826 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground14" size="0.103483 0.6 10.3249" pos="5.5 0 -10.1751" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground15" size="0.198259 0.6 10.25" pos="5.80174 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground16" size="0.139289 0.6 10.25" pos="6.13929 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground17" size="0.221423 0.6 5.38903" pos="6.5 0 -15.111" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground18" size="0.139289 0.6 10.25" pos="6.86071 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground19" size="1.5 0.6 10.25" pos="8.5 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <light pos="0 -3 6"/>
+    <body name="torso" pos="0 0 1">
+      <joint name="root_x" type="slide" armature="0.02" axis="1 0 0" limited="false"/>
+      <joint name="root_z" type="slide" armature="0.02" limited="false"/>
+      <joint name="root_pitch" armature="0.02" damping="0.1" axis="0 1 0" limited="false"/>
+      <geom size="0.09 0.15" quat="0 1 0 0" type="capsule" rgba="0.2 0.35 0.8 1" mass="3"/>
+      <body name="thigh_left" pos="0 -0.11 -0.15">
+        <joint name="hip_left" range="-1.39626 1.39626" armature="0.02" damping="0.5" axis="0 1 0"/>
+        <geom size="0.045 0.175" pos="0 0 -0.175" type="capsule" rgba="0.2 0.35 0.8 1" mass="0.8"/>
+        <body name="shin_left" pos="0 0 -0.35">
+          <joint name="knee_left" range="-0.0872665 2.18166" armature="0.02" damping="0.5" axis="0 1 0"/>
+          <geom size="0.035 0.175" pos="0 0 -0.175" type="capsule" rgba="0.2 0.35 0.8 1" mass="0.5"/>
+          <geom size="0.075" pos="0 0 -0.35" rgba="0.2 0.35 0.8 1" mass="0.15"/>
+          <site name="touch_shin_left_1" size="0.08475" pos="0 0 -0.35"/>
+        </body>
+      </body>
+      <body name="thigh_right" pos="0 0.11 -0.15">
+        <joint name="hip_right" range="-1.39626 1.39626" armature="0.02" damping="0.5" axis="0 1 0"/>
+        <geom size="0.045 0.175" pos="0 0 -0.175" type="capsule" rgba="0.2 0.35 0.8 1" mass="0.8"/>
+        <body name="shin_right" pos="0 0 -0.35">
+          <joint name="knee_right" range="-0.0872665 2.18166" armature="0.02" damping="0.5" axis="0 1 0"/>
+          <geom size="0.035 0.175" pos="0 0 -0.175" type="capsule" rgba="0.2 0.35 0.8 1" mass="0.5"/>
+          <geom size="0.075" pos="0 0 -0.35" rgba="0.2 0.35 0.8 1" mass="0.15"/>
+          <site name="touch_shin_right_1" size="0.08475" pos="0 0 -0.35"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <general joint="hip_left" ctrlrange="-1 1" ctrllimited="true" gear="20"/>
+    <general joint="knee_left" ctrlrange="-1 1" ctrllimited="true" gear="20"/>
+    <general joint="hip_right" ctrlrange="-1 1" ctrllimited="true" gear="20"/>
+    <general joint="knee_right" ctrlrange="-1 1" ctrllimited="true" gear="20"/>
+  </actuator>
+
+  <sensor>
+    <touch site="touch_shin_left_1" name="contact_shin_left_1"/>
+    <touch site="touch_shin_right_1" name="contact_shin_right_1"/>
+  </sensor>
+</mujoco>
