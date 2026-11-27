@@ -3,7 +3,7 @@
   "complete": true,
   "updates": 512,
   "episodes": 32,
-  "seconds": 26.129429000022355,
+  "seconds": 26.129306700022426,
   "checkpoint": "data\\jobs\\basic-dreamer-s0\\progress\\dreamer.pkl",
   "upstream_commit": "e01491fad6434b2245a3b8ca201dd7faedcc458c",
   "curriculum": {
