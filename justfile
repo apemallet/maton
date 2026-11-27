@@ -27,6 +27,7 @@ status:
 
 # Commit one job's progress (weights via Git LFS) so another machine can resume it.
 share name:
+	@git config --get filter.lfs.clean >/dev/null || (echo "Git LFS is not enabled here; run 'just install' first." && exit 1)
 	git add data/jobs/{{name}}/progress
 	git commit -m "$(uv run python -m maton.workflow status --job {{name}} --oneline)" -- data/jobs/{{name}}/progress
 
