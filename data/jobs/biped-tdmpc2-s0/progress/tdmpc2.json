@@ -1,6 +1,6 @@
 {
   "algorithm": "tdmpc2",
-  "step": 188416,
+  "step": 385024,
   "observation_size": 53,
   "action_size": 4,
   "episode_length": 512,
@@ -52,8 +52,8 @@
   "curriculum": {
     "level": 5,
     "name": "treacherous-terrain",
-    "successes": 4,
+    "successes": 5,
     "successes_required": 5,
-    "complete": false
+    "complete": true
   }
 }

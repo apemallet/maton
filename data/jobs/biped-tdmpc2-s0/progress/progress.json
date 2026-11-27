@@ -3,9 +3,9 @@
   "algorithm": "tdmpc2",
   "training_fingerprint": "6a819fdc4206da9a69a726b04193d749a119cc21dd8e9f211119a5f97377915c",
   "total": 524288,
-  "steps": 195584,
+  "steps": 387984,
   "complete": false,
-  "hours": 0.539,
+  "hours": 1.041,
   "sessions": [
     {
       "started": "2026-11-27T18:46:28+00:00",
@@ -30,6 +30,18 @@
       "device": "gpu",
       "revision": "f6a0af0d43c135ff5e7bc9a234b5e1a412bd0daf",
       "dirty": true
+    },
+    {
+      "started": "2026-11-27T19:20:16+00:00",
+      "hours": 0.502,
+      "steps": [
+        195584,
+        387984
+      ],
+      "machine": "wslOnix",
+      "device": "gpu",
+      "revision": "f397a3af78914267fc2be9688cd397db7e202277",
+      "dirty": true
     }
   ],
   "curriculum": {
@@ -40,8 +52,8 @@
     "complete": true
   },
   "latest": {
-    "steps": 194560,
-    "episode_return": 0.12376728723179298,
+    "steps": 387072,
+    "episode_return": 21.85758894187992,
     "successes": 0
   }
 }
