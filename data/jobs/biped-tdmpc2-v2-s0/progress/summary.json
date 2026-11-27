@@ -1,0 +1,44 @@
+{
+  "algorithm": "tdmpc2",
+  "steps": 189880,
+  "complete": false,
+  "updates": 189880,
+  "episodes": 1358,
+  "seed_steps": 2560,
+  "seconds": 1791.1583392539999,
+  "session_steps_per_second": 106.0096113576709,
+  "last": {
+    "steps": 188416,
+    "updates": 188416,
+    "episodes": 1352,
+    "episode_return": 4.070658313446659,
+    "successes": 0,
+    "steps_per_second": 106.14947405600017,
+    "curriculum": {
+      "level": 4,
+      "name": "dangerous-gaps",
+      "successes": 0,
+      "successes_required": 4,
+      "window": 10,
+      "complete": false
+    },
+    "consistency_loss": 0.0010549527066814335,
+    "grad_norm": 0.9307075904216617,
+    "pi_loss": -0.2177590592764318,
+    "pi_scale": 101.93499264121056,
+    "pi_scaled_entropy": 26.618582643568516,
+    "reward_loss": 0.3435560744255781,
+    "td_target": 45.726077780127525,
+    "termination_loss": 0.0017450474548468264,
+    "total_loss": 0.0990631882159505,
+    "value_loss": 0.41863478207960725
+  },
+  "curriculum": {
+    "level": 4,
+    "name": "dangerous-gaps",
+    "successes": 0,
+    "successes_required": 4,
+    "window": 10,
+    "complete": false
+  }
+}
