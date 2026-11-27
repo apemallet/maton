@@ -1,0 +1,13 @@
+{
+  "seed": 1002,
+  "steps": 134,
+  "reward": -1.3325263067854394,
+  "level": 0,
+  "level_name": "flat-walking",
+  "success": false,
+  "distance": -1.3315964937210083,
+  "terminated": true,
+  "truncated": false,
+  "dt": 0.02,
+  "upright_fraction": 0.6296296296296297
+}
