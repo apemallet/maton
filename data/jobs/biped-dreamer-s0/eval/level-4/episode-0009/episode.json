@@ -1,0 +1,13 @@
+{
+  "seed": 1009,
+  "steps": 178,
+  "reward": 105.51201830618083,
+  "level": 3,
+  "level_name": "shallow-recesses",
+  "success": true,
+  "distance": 4.014276027679443,
+  "terminated": true,
+  "truncated": false,
+  "dt": 0.04,
+  "upright_fraction": 1.0
+}

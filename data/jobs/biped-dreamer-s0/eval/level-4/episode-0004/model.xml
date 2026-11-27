@@ -1,0 +1,65 @@
+<mujoco model="biped">
+  <compiler angle="radian"/>
+
+  <option timestep="0.01" solver="CG" iterations="6" ls_iterations="4"/>
+
+  <visual>
+    <global offwidth="960" offheight="540"/>
+  </visual>
+
+  <default>
+    <geom contype="2" friction="1.6 0.01 0.001"/>
+  </default>
+
+  <worldbody>
+    <geom name="ground0" size="1.5 0.6 10.25" pos="-0.5 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground1" size="0.177738 0.6 10.25" pos="1.17774 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground2" size="0.144524 0.6 10.2921" pos="1.5 0 -10.2079" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground3" size="0.177738 0.6 10.25" pos="1.82226 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground4" size="0.210026 0.6 10.25" pos="2.21003 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground5" size="0.0799472 0.6 10.25" pos="2.5 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground6" size="0.210026 0.6 10.25" pos="2.78997 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground7" size="0.19391 0.6 10.25" pos="3.19391 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground8" size="0.11218 0.6 10.25" pos="3.5 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <geom name="ground9" size="0.19391 0.6 10.25" pos="3.80609 0 -10.25" type="box" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>
+    <light pos="0 -3 6"/>
+    <body name="torso" pos="0 0 1">
+      <joint name="root_x" type="slide" armature="0.02" axis="1 0 0" limited="false"/>
+      <joint name="root_z" type="slide" armature="0.02" limited="false"/>
+      <joint name="root_pitch" armature="0.02" damping="0.1" axis="0 1 0" limited="false"/>
+      <geom size="0.09 0.15" quat="0 1 0 0" type="capsule" rgba="0.2 0.35 0.8 1" mass="3"/>
+      <body name="thigh_left" pos="0 -0.11 -0.15">
+        <joint name="hip_left" range="-1.39626 1.39626" armature="0.02" damping="0.5" axis="0 1 0"/>
+        <geom size="0.045 0.175" pos="0 0 -0.175" type="capsule" rgba="0.2 0.35 0.8 1" mass="0.8"/>
+        <body name="shin_left" pos="0 0 -0.35">
+          <joint name="knee_left" range="-0.0872665 2.18166" armature="0.02" damping="0.5" axis="0 1 0"/>
+          <geom size="0.035 0.175" pos="0 0 -0.175" type="capsule" rgba="0.2 0.35 0.8 1" mass="0.5"/>
+          <geom size="0.075 0.08" pos="0 0 -0.35" quat="0.707107 0 -0.707107 0" type="capsule" rgba="0.2 0.35 0.8 1" mass="0.15"/>
+          <site name="touch_shin_left_1" size="0.08475 0.08" pos="0 0 -0.35" quat="0.707107 0 -0.707107 0" type="capsule"/>
+        </body>
+      </body>
+      <body name="thigh_right" pos="0 0.11 -0.15">
+        <joint name="hip_right" range="-1.39626 1.39626" armature="0.02" damping="0.5" axis="0 1 0"/>
+        <geom size="0.045 0.175" pos="0 0 -0.175" type="capsule" rgba="0.2 0.35 0.8 1" mass="0.8"/>
+        <body name="shin_right" pos="0 0 -0.35">
+          <joint name="knee_right" range="-0.0872665 2.18166" armature="0.02" damping="0.5" axis="0 1 0"/>
+          <geom size="0.035 0.175" pos="0 0 -0.175" type="capsule" rgba="0.2 0.35 0.8 1" mass="0.5"/>
+          <geom size="0.075 0.08" pos="0 0 -0.35" quat="0.707107 0 -0.707107 0" type="capsule" rgba="0.2 0.35 0.8 1" mass="0.15"/>
+          <site name="touch_shin_right_1" size="0.08475 0.08" pos="0 0 -0.35" quat="0.707107 0 -0.707107 0" type="capsule"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <general joint="hip_left" ctrlrange="-1 1" ctrllimited="true" gear="20"/>
+    <general joint="knee_left" ctrlrange="-1 1" ctrllimited="true" gear="20"/>
+    <general joint="hip_right" ctrlrange="-1 1" ctrllimited="true" gear="20"/>
+    <general joint="knee_right" ctrlrange="-1 1" ctrllimited="true" gear="20"/>
+  </actuator>
+
+  <sensor>
+    <touch site="touch_shin_left_1" name="contact_shin_left_1"/>
+    <touch site="touch_shin_right_1" name="contact_shin_right_1"/>
+  </sensor>
+</mujoco>
