@@ -1,5 +1,6 @@
 """Configurable planar walkers with MJX dynamics and geometric range sensing."""
 from dataclasses import dataclass
+import math
 from xml.etree import ElementTree as ET
 
 import equinox as eqx
@@ -11,7 +12,7 @@ import numpy as np
 from jaxtyping import Array
 
 from maton.walker import WalkerConfig, default_walker
-from maton.terrain import TerrainConfig, rectangles, sample_terrain
+from maton.terrain import TerrainConfig, rectangle_count, rectangles, sample_terrain
 from maton.curriculum import CurriculumConfig, Level
 
 
@@ -31,8 +32,12 @@ class EnvConfig:
     finish_reward: float = 0.0
     friction: float = 0.9
     angle_harmonics: int = 2
+    fall_timeout: float = 1.0  # seconds continuously fallen before the episode fails
+    sink_depth: float = 0.5  # torso this far below the original floor: trapped, episode fails
 
     def __post_init__(self):
+        if not (self.fall_timeout > 0 and self.sink_depth > 0):
+            raise ValueError("fall_timeout and sink_depth must be positive")
         if self.timestep <= 0 or self.frame_skip < 1 or self.episode_length < 1:
             raise ValueError("Time settings must be positive")
         if self.lidar_count < 1 or self.lidar_range <= 0 or self.reset_noise < 0:
@@ -63,6 +68,7 @@ class State(eqx.Module):
     action: Array
     level: Array
     success: Array
+    fallen_steps: Array  # consecutive steps fallen
 
     @property
     def done(self):
@@ -71,7 +77,7 @@ class State(eqx.Module):
 
 def _xml(config: EnvConfig, terrain: TerrainConfig, walker: WalkerConfig, rect: np.ndarray | None = None, bottom: float = -1.0) -> str:
     floor = ''.join(f'<geom name="ground{i}" type="box" pos="0 0 -0.5" size="0.1 0.6 0.5" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>'
-                    for i in range(1 + terrain.slots * 3))
+                    for i in range(rectangle_count(terrain)))
     if rect is not None:
         floor = ''.join(f'<geom name="ground{i}" type="box" pos="{(left+right)/2} 0 {(top+bottom)/2}" '
                         f'size="{(right-left)/2} 0.6 {(top-bottom)/2}" contype="1" conaffinity="2" rgba="0.5 0.6 0.5 1"/>'
@@ -112,7 +118,8 @@ class WalkerEnv:
         self._torque_limit = jnp.array([m.torque_limit for m in motors if m])
         self.mjx_model = mjx.put_model(self.model)
         self._data = mjx.make_data(self.mjx_model)
-        self._ground_count = 1 + 3 * terrain.slots
+        self._ground_count = rectangle_count(terrain)
+        self._fall_steps = max(1, math.ceil(config.fall_timeout / (config.timestep * config.frame_skip) - 1e-9))
 
     def _model(self, terrain: Array):
         rect = rectangles(terrain, self.terrain_config)
@@ -129,7 +136,7 @@ class WalkerEnv:
         data = self._data.replace(qpos=pose, qvel=jnp.zeros(self.model.nv), ctrl=jnp.zeros(self.action_size))
         data = mjx.forward(self._model(terrain), data)
         return State(data, terrain, jnp.array(0), jnp.float32(0), jnp.array(False), jnp.array(False),
-                     jnp.zeros(self.action_size), jnp.asarray(level), jnp.array(False))
+                     jnp.zeros(self.action_size), jnp.asarray(level), jnp.array(False), jnp.array(0))
 
     def motor_control(self, data: mjx.Data, action: Array) -> Array:
         """Map normalized commands to normalized motor torque at each physics step."""
@@ -170,15 +177,21 @@ class WalkerEnv:
         reward = jnp.where(finite, reward, -1.0)
         # Preserve a finite terminal observation so a failed simulation cannot poison replay.
         data = jax.lax.cond(finite, lambda: data, lambda: state.data)
-        fallen = (data.qpos[1] + self.walker.spawn_height < 0.5 * self.walker.spawn_height) | (jnp.cos(data.qpos[2]) < jnp.cos(1.4))
+        height = data.qpos[1] + self.walker.spawn_height
+        fallen = (height < 0.5 * self.walker.spawn_height) | (jnp.cos(data.qpos[2]) < jnp.cos(1.4))
+        fallen_steps = jnp.where(fallen, state.fallen_steps + 1, 0)
+        # Hopeless states end the episode: fallen for too long, or sunk into a pit.
+        stuck = fallen_steps >= self._fall_steps
+        sunk = height < -self.config.sink_depth
+        # The finish line always ends the episode; crossing it fallen is a failure.
         finished = data.qpos[0] >= self.terrain_config.length
         success = finished & ~fallen & finite
         reward += jnp.where(success, self.config.finish_reward, 0.0)
-        terminated = success | ~finite | (data.qpos[0] < -1.5)
+        terminated = finished | stuck | sunk | ~finite | (data.qpos[0] < -1.5)
         steps = state.steps + 1
         return State(data, state.terrain, steps, reward, terminated,
                      (steps >= self.config.episode_length) & ~terminated, action,
-                     state.level, success)
+                     state.level, success, fallen_steps)
 
     def lidar(self, state: State) -> Array:
         """Exact planar ray intersections with the same boxes used by physics."""

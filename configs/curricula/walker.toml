@@ -1,11 +1,14 @@
-# Cumulative successful course finishes required at EACH level.
-successes_required = 5
+# Promote after 4 successful finishes among the last 10 episodes at a level.
+successes_required = 4
+window = 10
 
 # Geometry topology is shared by every level; changes do not recompile MJX.
+# 1 m start + 6 obstacle slots + 1 m clear run-out = 8 m to the finish line.
 [terrain]
-slots = 3
+slots = 6
 spacing = 1.0
 start_length = 1.0
+run_out = 1.0
 block_frequency = 0.0
 gap_frequency = 0.0
 

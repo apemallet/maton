@@ -20,10 +20,13 @@ class TerrainConfig:
     gap_frequency: float = 0.1
     gap_height: float = 0.15
     gap_width: float = 0.3
+    run_out: float = 1.0  # clear floor between the last obstacle slot and the finish line
 
     def __post_init__(self):
         if self.slots < 1 or self.spacing <= 0 or self.start_length < 1:
             raise ValueError("Course needs slots, positive spacing, and at least 1m clear start")
+        if not (math.isfinite(self.run_out) and self.run_out >= 0):
+            raise ValueError("run_out must be finite and nonnegative")
         if not (0 <= self.block_frequency <= 1 and 0 <= self.gap_frequency <= 1
                 and self.block_frequency + self.gap_frequency <= 1):
             raise ValueError("Block and gap frequencies must be probabilities with sum <= 1")
@@ -34,7 +37,8 @@ class TerrainConfig:
 
     @property
     def length(self) -> float:
-        return self.start_length + self.slots * self.spacing
+        """Distance to the finish line."""
+        return self.start_length + self.slots * self.spacing + self.run_out
 
 
 def sample_terrain(key: Array, config: TerrainConfig) -> Array:
@@ -49,8 +53,16 @@ def sample_terrain(key: Array, config: TerrainConfig) -> Array:
     return jnp.stack((height * scale[:, 0], width * scale[:, 1]), axis=-1)
 
 
+BEYOND_FINISH = 2.0  # floor past the finish line, so no course ends in a drop
+
+
+def rectangle_count(config: TerrainConfig) -> int:
+    return 2 + 3 * config.slots
+
+
 def rectangles(terrain: Array, config: TerrainConfig) -> Array:
-    """Return [rectangle, (left, right, top)] for collision and lidar alike."""
+    """Return [rectangle, (left, right, top)] for collision and lidar alike: the start strip,
+    three tiles per slot (floor, obstacle, floor), then run-out floor past the finish."""
     center = config.start_length + (jnp.arange(config.slots) + 0.5) * config.spacing
     left = center - terrain[:, 1] / 2
     right = center + terrain[:, 1] / 2
@@ -61,4 +73,6 @@ def rectangles(terrain: Array, config: TerrainConfig) -> Array:
                        jnp.stack((left, right, terrain[:, 0]), -1),
                        jnp.stack((right, end, zero), -1)), axis=1)
     flat = cast(Array, einx.id("slot part coord -> (slot part) coord", tiles))  # pyright: ignore[reportPrivateImportUsage]
-    return jnp.concatenate((jnp.array([[-2.0, config.start_length, 0.0]]), flat))
+    slots_end = config.start_length + config.slots * config.spacing
+    return jnp.concatenate((jnp.array([[-2.0, config.start_length, 0.0]]), flat,
+                            jnp.array([[slots_end, config.length + BEYOND_FINISH, 0.0]])))

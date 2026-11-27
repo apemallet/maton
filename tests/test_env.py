@@ -51,8 +51,24 @@ def test_fall_allows_recovery_and_action_is_clipped(env):
     state = jax.jit(env.reset)(jax.random.key(0))
     state = eqx.tree_at(lambda s: s.data.qpos, state, state.data.qpos.at[1].set(-0.7))
     state = jax.jit(env.step)(state, jnp.full(4, 100))
-    assert not bool(state.terminated)
+    assert not bool(state.terminated) and int(state.fallen_steps) == 1
     np.testing.assert_array_equal(state.action, np.ones(4))
+
+
+def test_staying_fallen_for_the_timeout_ends_the_episode():
+    env = WalkerEnv(EnvConfig(reset_noise=0, fall_timeout=0.1, episode_length=100), TerrainConfig(slots=1))
+    steps_allowed = round(0.1 / (env.config.timestep * env.config.frame_skip))  # 5 steps of 0.02 s
+    state = jax.jit(env.reset)(jax.random.key(0))
+    step = jax.jit(env.step)
+    lying = state.data.qpos.at[2].set(jnp.pi / 2)  # torso horizontal
+    for index in range(steps_allowed):
+        state = step(eqx.tree_at(lambda s: s.data.qpos, state, lying), jnp.zeros(4))
+        assert bool(state.terminated) == (index == steps_allowed - 1)
+    assert not bool(state.success)
+    # Getting back up resets the clock.
+    upright = step(eqx.tree_at(lambda s: (s.data.qpos, s.fallen_steps), state, (lying.at[2].set(0), jnp.array(3))),
+                   jnp.zeros(4))
+    assert int(upright.fallen_steps) == 0
 
 
 def test_position_motor_control_is_neutral_at_targets_and_damped():
@@ -97,7 +113,7 @@ def test_fallen_beyond_finish_gets_no_runoff_reward(env):
     state = eqx.tree_at(lambda s: s.data.qvel, state, state.data.qvel.at[0].set(2))
     state = jax.jit(env.step)(state, jnp.zeros(4))
     assert float(state.reward) == pytest.approx(0, abs=1e-6)
-    assert not bool(state.success)
+    assert not bool(state.success) and bool(state.terminated)
 
 
 def test_capsule_foot_neutral_stance_and_target_endpoints():

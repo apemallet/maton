@@ -30,6 +30,8 @@ See [workflow](workflow.md) for names, artifact paths, evaluations, and rebuild 
 | `finish_reward` | `0.0` | Nonnegative bonus paid once for upright course completion. |
 | `angle_harmonics` | `2` | Fourier harmonics `K` for angle and angular-rate observations; observation size is `4 * (1 + hinges) * K + 2 + contacts + lidar_count`. Positive integer. |
 | `friction` | `0.9` | MuJoCo sliding friction of every geom (contact uses the larger of the pair); positive, below 10. |
+| `fall_timeout` | `1.0` | Seconds continuously fallen (not upright, see below) before the episode terminates as a failure; positive. |
+| `sink_depth` | `0.5` | Torso this many metres below the original floor (e.g. in a deep gap) terminates as a failure; positive. |
 | `upright_reward` | `0.0` | Optional posture reward per simulated second; nonnegative. |
 
 Position mode uses each joint's motor target range, neutral, gains, and torque cap
@@ -38,7 +40,7 @@ the lower/upper target. Torque is `clip(kp * (target - angle) - kd * velocity, �
 
 Action duration is `timestep * frame_skip`; maximum simulated episode duration is
 `episode_length * timestep * frame_skip`. Successful course completion
-can end an episode earlier; falls may recover until the time limit. Increasing `frame_skip` holds each command longer.
+or a hopeless fall (`fall_timeout`, `sink_depth`) ends an episode earlier; brief falls may recover. Increasing `frame_skip` holds each command longer.
 
 Reward per action is `Phi(next) - Phi(previous) - control_cost * mean(normalized_torque²)`
 plus `upright_reward * action_duration * posture_score` and a successful `finish_reward`.
@@ -58,8 +60,8 @@ Rays span downward to 15° above forward.
 Jobs reference a separate curriculum instead of declaring `[terrain]`. See
 [curricula/walker.toml](../configs/curricula/walker.toml) and [curriculum rules](curriculum.md).
 The curriculum has shared `[terrain]` defaults and ordered `[[levels]]` entries
-with a `name`, optional `successes_required`, and `[levels.terrain]` overrides.
-Root `successes_required` defaults to five per level.
+with a `name`, optional `successes_required` and `window`, and `[levels.terrain]` overrides.
+A level promotes after `successes_required` (default 4) successes among its last `window` (default 10) episodes.
 
 All lengths are in metres. Each slot independently selects a block, gap, or flat
 floor. Frequencies are probabilities **per slot**, not obstacles per metre.
@@ -77,12 +79,13 @@ their configured maxima. Terrain is resampled on each episode reset.
 | `gap_frequency`   | `0.1`   | Probability of a floor recess in a slot; `[0, 1]`.                                                              |
 | `gap_height`      | `0.15`  | Maximum recess depth below the floor; finite and nonnegative; floor geometry extends below the deepest configured gap.                         |
 | `gap_width`       | `0.3`   | Maximum recess width; strictly between zero and `spacing`.                                                      |
+| `run_out`         | `1.0`   | Clear floor after the last slot, before the finish line; nonnegative. Floor continues 2 m past the finish.     |
 
 `block_frequency + gap_frequency` must be at most one; the remaining probability
-produces flat floor. Gaps have physical bottoms and vertical sides; entering a gap
-does not trigger termination. Deep gaps rely on physical difficulty and timeout. Levels share `slots`, `spacing`, and `start_length`
-to retain fixed MJX shapes. Course length forward
-from the start is `start_length + slots * spacing`.
+produces flat floor. Gaps have physical bottoms and vertical sides; sinking
+`env.sink_depth` below the floor terminates. Levels share `slots`, `spacing`, `start_length`,
+and `run_out` to retain fixed MJX shapes. The finish line is at
+`start_length + slots * spacing + run_out`.
 
 ## `[training]`: shared trainer settings
 

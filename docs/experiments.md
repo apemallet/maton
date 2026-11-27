@@ -68,3 +68,20 @@ action), `walker.toml` as committed (512 steps, `friction=1.6`), 524k steps:
 Open issue: PPO needs `episode_length=512`; Dreamer needs ≈800. Falls never
 terminate, so fallen walkers waste most of a long episode. `configs/walker.toml`
 currently uses 512 (PPO passes; Dreamer does not).
+
+# v1 course baseline (superseded)
+
+Biped seed 0, 524k transitions, the original 4 m course: 3 obstacle slots, no
+run-out, falls never ended episodes, promotion after 5 cumulative successes.
+Artifacts: `data/jobs/biped-{tdmpc2,dreamer}-s0/` (configs retired; code at `db0f66aa`).
+SAC and PPO were not run. Successes over 10 held-out episodes per level:
+
+| Trainer | Hours | L1 | L2 | L3 | L4 | L5 | L6 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| TD-MPC2 (RTX 3080) | 1.41 | 10 | 10 | 6 | 4 | 5 | 2 |
+| Dreamer (CPU) | 1.05 | 10 | 10 | 7 | 7 | 0 | 0 |
+
+Flaws found in the videos, fixed in v2 (`*-v2-s0` jobs): a walker crossing the finish
+line fallen fell off the end of the world; the last obstacle sat ~0.3 m before the
+finish, so a lunge could win; fallen walkers idled until timeout; a few lucky
+finishes promoted (Dreamer reached level 6 by 160k, then stalled near zero return).

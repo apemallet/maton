@@ -12,26 +12,29 @@ The separate [curriculum TOML](../configs/curricula/walker.toml) defines:
 | 5 | Deep (5–10 m), wider gaps |
 | 6 | Dense mixed terrain and treacherous 10–20 m gaps |
 
-All courses are 4 m long. Five cumulative successful finishes are required **at
-each level**, configurable globally or per level using `successes_required`.
-Success means reaching the actual course end while upright. Timeouts and
-simulation failures never count. Failures do not erase earlier successes. Finishing the last level marks the curriculum complete;
-training continues there until its transition budget is exhausted.
+Courses are 8 m: 1 m clear start, six 1 m obstacle slots, then 1 m clear
+**run-out** before the finish line, so a lunge over the last obstacle cannot win.
+Floor continues 2 m past the finish. Promotion needs **4 successes among the last
+10 episodes** at a level (`successes_required`, `window`; global or per level), so
+a few lucky finishes no longer promote. Success means crossing the finish line
+upright. Finishing the last level marks the curriculum complete; training
+continues there until its transition budget is exhausted.
 
 PPO shares one progression counter across environments. Promotion affects new
 episodes only. Already-running episodes retain their level, and their later
 finishes cannot count toward a different level. Dreamer changes level on reset.
 The policy, optimizer, and Dreamer replay are retained across promotions.
 
-Gaps have physical sides and bottoms, with no gap-entry kill rule. Falling or
-being below the original floor does not end an episode, so recovery remains
-possible. Late-level depths are intended to trap the walker until its ordinary
-episode timeout. Only upright course completion, leaving the backward course
-boundary, or invalid dynamics terminate early. A fallen walker at the finish
-must recover before the finish counts.
+Episodes end (terminate) when the walker:
+- crosses the finish line: a success only if upright;
+- stays fallen for `env.fall_timeout` (1 s), or sinks `env.sink_depth` (0.5 m) below
+  the floor, e.g. into a deep gap: failures. Brief stumbles and shallow recesses recover;
+- leaves the course backwards, or the simulation becomes invalid.
+
+Otherwise the time limit truncates. Hopeless states no longer idle until timeout.
 
 Shared `[terrain]` defaults are overlaid by `[levels.terrain]`. Keep `slots`,
-`spacing`, and `start_length` identical across levels to avoid MJX recompilation.
+`spacing`, `start_length`, and `run_out` identical across levels (fixed MJX shapes).
 Obstacle height/depth and width still vary from 50–100% of configured maxima;
 gap/block frequencies are probabilities, so not every sampled course has a gap.
 

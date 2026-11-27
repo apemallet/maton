@@ -22,14 +22,15 @@ def test_default_curriculum_starts_flat_and_ends_with_deep_gaps():
     assert curriculum.levels[-1].terrain.gap_height >= 20
 
 
-def test_progress_requires_repeated_finishes_and_ignores_old_parallel_episodes():
+def test_progress_needs_a_recent_success_rate_and_ignores_old_parallel_episodes():
     flat = TerrainConfig(block_frequency=0, gap_frequency=0)
-    progress = CurriculumProgress(CurriculumConfig((Level("one", 2, flat), Level("two", 2, flat))))
-    assert not progress.record(False, 0)
+    progress = CurriculumProgress(CurriculumConfig((Level("one", 2, flat, window=3), Level("two", 2, flat, window=3))))
     assert not progress.record(True, 0)
-    assert progress.level == 0
-    assert not progress.record(False, 0)  # Failures do not erase cumulative finishes.
-    assert progress.record(True, 0)
+    assert not progress.record(False, 0)
+    assert not progress.record(False, 0)  # Window [T, F, F]: one recent success.
+    assert not progress.record(True, 0)  # Oldest success slid out: [F, F, T].
+    assert progress.level == 0 and progress.successes == 1
+    assert progress.record(True, 0)  # [F, T, T]
     assert progress.level == 1 and progress.successes == 0
     assert not progress.record(True, 0)  # Stale episode from a parallel environment.
     assert progress.successes == 0
@@ -38,6 +39,17 @@ def test_progress_requires_repeated_finishes_and_ignores_old_parallel_episodes()
     assert progress.complete and progress.level == 1
     progress.record(True, 1)
     assert progress.successes == 2
+
+
+def test_progress_state_round_trips():
+    flat = TerrainConfig(block_frequency=0, gap_frequency=0)
+    config = CurriculumConfig((Level("one", 3, flat), Level("two", 3, flat)))
+    progress = CurriculumProgress(config)
+    for success in (True, False, True):
+        progress.record(success, 0)
+    restored = CurriculumProgress(config)
+    restored.restore(progress.state())
+    assert restored == progress and restored.snapshot()["successes"] == 2
 
 
 def test_curriculum_reference_is_relative_and_snapshot_is_self_contained(tmp_path, monkeypatch):
@@ -62,13 +74,17 @@ def test_invalid_curricula():
         CurriculumConfig(())
     with pytest.raises(ValueError):
         Level("flat", 0, flat)
+    with pytest.raises(ValueError, match="window"):
+        Level("flat", 5, flat, window=4)
     with pytest.raises(ValueError, match="share"):
         CurriculumConfig((Level("one", 1, flat), Level("two", 1, replace(flat, slots=2))))
+    with pytest.raises(ValueError, match="share"):
+        CurriculumConfig((Level("one", 1, flat), Level("two", 1, replace(flat, run_out=2.0))))
     with pytest.raises(ValueError, match="flat"):
         CurriculumConfig((Level("one", 1, TerrainConfig()), Level("two", 1, flat)))
 
 
-def test_deep_gap_stays_live_until_timeout_with_valid_collision_and_lidar_geometry():
+def test_sinking_into_a_deep_gap_ends_the_episode_with_valid_collision_and_lidar_geometry():
     flat = TerrainConfig(slots=1, block_frequency=0, gap_frequency=0)
     pit = replace(flat, gap_frequency=1, gap_height=20, gap_width=0.8)
     curriculum = CurriculumConfig((Level("flat", 1, flat), Level("deep", 1, pit)))
@@ -79,7 +95,7 @@ def test_deep_gap_stays_live_until_timeout_with_valid_collision_and_lidar_geomet
     data = mjx.forward(env._model(state.terrain), state.data.replace(qpos=qpos))
     state = eqx.tree_at(lambda s: s.data, state, data)
     model = env.cpu_model(state)
-    assert np.all(model.geom_size[:4] > 0)
+    assert np.all(model.geom_size[:5] > 0)
     assert model.geom_pos[2, 2] + model.geom_size[2, 2] == pytest.approx(float(state.terrain[0, 0]))
     assert env._floor_bottom < float(state.terrain[0, 0])
     assert np.isfinite(env.lidar(state)).all()
@@ -87,16 +103,13 @@ def test_deep_gap_stays_live_until_timeout_with_valid_collision_and_lidar_geomet
     env_long = WalkerEnv(EnvConfig(lidar_range=30), curriculum=curriculum)
     distance = float(env_long.lidar(state)[0]) * 30
     assert distance == pytest.approx(-1 - float(state.terrain[0, 0]), abs=1e-4)
-    step = jax.jit(env.step)
-    for index in range(8):
-        state = step(state, jnp.zeros(4))
-        assert not bool(state.terminated)
-        assert not bool(state.success)
-        assert bool(state.truncated) == (index == 7)
-        assert np.isfinite(env.observation(state)).all()
+    # A torso this far below the floor cannot climb out: the episode fails at once.
+    state = jax.jit(env.step)(state, jnp.zeros(4))
+    assert bool(state.terminated) and not bool(state.success) and not bool(state.truncated)
+    assert np.isfinite(env.observation(state)).all()
 
 
-def test_finish_success_requires_an_upright_walker():
+def test_finish_line_ends_every_episode_but_only_upright_finishes_succeed():
     env = WalkerEnv(EnvConfig(reset_noise=0, frame_skip=1), TerrainConfig(slots=1))
     state = jax.jit(env.reset)(jax.random.key(0))
     qpos = state.data.qpos.at[0].set(env.terrain_config.length + 0.01)
@@ -104,4 +117,4 @@ def test_finish_success_requires_an_upright_walker():
     upright = step(eqx.tree_at(lambda s: s.data.qpos, state, qpos), jnp.zeros(4))
     assert bool(upright.success) and bool(upright.terminated)
     fallen = step(eqx.tree_at(lambda s: s.data.qpos, state, qpos.at[2].set(1.6)), jnp.zeros(4))
-    assert not bool(fallen.terminated) and not bool(fallen.success)
+    assert bool(fallen.terminated) and not bool(fallen.success)

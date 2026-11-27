@@ -42,14 +42,14 @@ episode index, including those outside the default `render` selection.
 ```sh
 just smoke                       # default: smoke-ppo, including one video
 just job smoke-dreamer
-just job biped-ppo-s0 -n          # review work without executing it
-just build data/jobs/biped-ppo-s0/train
-just build data/jobs/biped-ppo-s0/eval/level-1
-just build data/jobs/biped-ppo-s0/render/level-1/episode-0000.mp4
+just job biped-ppo-v2-s0 -n          # review work without executing it
+just build data/jobs/biped-ppo-v2-s0/train
+just build data/jobs/biped-ppo-v2-s0/eval/level-1
+just build data/jobs/biped-ppo-v2-s0/render/level-1/episode-0000.mp4
 just view-walker biped neutral
 ```
 
-Equivalent: `uv run snakemake --config job=biped-ppo-s0` builds all configured job
+Equivalent: `uv run snakemake --config job=biped-ppo-v2-s0` builds all configured job
 outputs. A concrete path builds only that artifact and its dependencies.
 
 # Sessions: pause, resume, share
@@ -57,10 +57,10 @@ outputs. A concrete path builds only that artifact and its dependencies.
 Training happens in `data/jobs/{job}/progress/`, resumable on any machine.
 
 ```sh
-just train biped-tdmpc2-s0 2   # train for 2 hours (blank: to completion); Ctrl-C pauses
+just train biped-tdmpc2-v2-s0 2   # train for 2 hours (blank: to completion); Ctrl-C pauses
 just status                    # transitions, %, hours, sessions, level, return, machines
-just share biped-tdmpc2-s0     # commit progress, plus built eval/, render/, plots/ (binaries via Git LFS)
-just job biped-tdmpc2-s0       # resume to the full budget, then publish train/, evaluate, render
+just share biped-tdmpc2-v2-s0     # commit progress, plus built eval/, render/, plots/ (binaries via Git LFS)
+just job biped-tdmpc2-v2-s0       # resume to the full budget, then publish train/, evaluate, render
 ```
 
 - Trainers save exact state in `progress/resume/` at every checkpoint interval and on pause.

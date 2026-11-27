@@ -2,7 +2,7 @@ import jax
 import numpy as np
 import pytest
 
-from maton.terrain import TerrainConfig, rectangles, sample_terrain
+from maton.terrain import BEYOND_FINISH, TerrainConfig, rectangle_count, rectangles, sample_terrain
 
 
 def test_seed_reproducibility_and_gap_geometry():
@@ -14,7 +14,11 @@ def test_seed_reproducibility_and_gap_geometry():
     np.testing.assert_allclose(rect[1::3, 2], 0)
     np.testing.assert_allclose(rect[2::3, 2], terrain[:, 0])
     np.testing.assert_allclose(rect[:-1, 1], rect[1:, 0], atol=1e-6)
-    assert rect[-1, 1] == pytest.approx(cfg.length)
+    assert len(rect) == rectangle_count(cfg)
+    # Clear run-out floor before the finish line, and floor beyond it.
+    assert rect[-1, 0] == pytest.approx(cfg.length - cfg.run_out)
+    assert rect[-1, 1] == pytest.approx(cfg.length + BEYOND_FINISH)
+    assert rect[-1, 2] == 0
 
 
 def test_blocks_are_bounded_and_flat_course_is_flat():
@@ -27,7 +31,7 @@ def test_blocks_are_bounded_and_flat_course_is_flat():
 
 
 @pytest.mark.parametrize('kwargs', [dict(gap_frequency=0.9), dict(block_width=2), dict(gap_height=-1),
-                                    dict(gap_height=float('inf')), dict(slots=0)])
+                                    dict(gap_height=float('inf')), dict(slots=0), dict(run_out=-1)])
 def test_invalid_terrain(kwargs):
     with pytest.raises(ValueError):
         TerrainConfig(**kwargs)

@@ -1,6 +1,6 @@
-algorithm = "sac"
-# Walking job; environment and budget match biped-ppo-s0 / biped-dreamer-s0.
-# Model-free off-policy baseline for TD-MPC2: same replay, seeding, and update ratio.
+algorithm = "tdmpc2"
+# Walking job; environment and budget match biped-ppo-v2-s0 / biped-dreamer-v2-s0.
+# Official 5M model and planner. Needs a GPU: ~4 transitions/s on an M1 Pro CPU.
 seed = 0
 walker = "../walkers/biped.toml"
 curriculum = "../curricula/walker.toml"
@@ -26,9 +26,9 @@ steps = 524_288
 learning_rate = 0.0003
 checkpoint_every = 8_192
 
-[sac]
-num_envs = 8
-update_ratio = 1.0
+[tdmpc2]
+num_envs = 8  # planning is batched across environments
+update_ratio = 1.0  # official: one update per transition
 
 [evaluations.level-1]
 checkpoint = "final"

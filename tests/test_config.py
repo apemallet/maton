@@ -19,7 +19,7 @@ def test_root_configs_and_resolved_snapshot(tmp_path):
     assert json.loads((output / "run.json").read_text())["env"]["lidar_count"] == 9
     with pytest.raises(FileExistsError):
         save_run(config, output)
-    Config.load("configs/jobs/biped-ppo-s0.toml")
+    Config.load("configs/jobs/biped-ppo-v2-s0.toml")
 
 
 @pytest.mark.parametrize("contents", ["[unknown]\nx=1", "[env]\nlidar_counts=9",

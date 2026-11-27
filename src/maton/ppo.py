@@ -204,8 +204,7 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
     restored = sessions.load(output, (policy, optimizer_state, states, observations, key))
     if restored is not None:
         (policy, optimizer_state, states, observations, key), host = restored
-        curriculum.level, curriculum.successes, curriculum.complete = (
-            host["curriculum"]["level"], host["curriculum"]["successes"], host["curriculum"]["complete"])
+        curriculum.restore(host["curriculum"])
         print(f"PPO: resuming at {host['transitions']}/{training.steps} transitions", flush=True)
 
     @eqx.filter_jit
@@ -226,8 +225,7 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
         host.update(transitions=transitions, iteration=iteration, episode_returns=episode_returns.tolist(),
                     completed_returns=completed_returns, last=record,
                     seconds=prior_seconds + time.perf_counter() - started,
-                    curriculum=dict(level=curriculum.level, successes=curriculum.successes,
-                                    complete=curriculum.complete))
+                    curriculum=curriculum.state())
         sessions.save(output, (policy, optimizer_state, states, observations, key), host)
 
     with (output / "metrics.csv").open("a" if restored else "w", newline="") as stream:

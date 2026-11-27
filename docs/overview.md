@@ -5,8 +5,9 @@
 - Actions command torque directly or joint targets with per-physics-step PD control.
   The walking job uses position control; see [motor settings](config.md).
 - Geometry supports spheres, capsules, and boxes; contact sensing is optional per geom.
-- Default 100 Hz physics, two steps per action. Upright course completion and leaving the backward
-  course boundary terminate; episode time limits truncate. Falls may recover.
+- Default 100 Hz physics, two steps per action. Crossing the finish line (success only if
+  upright), staying fallen 1 s, sinking 0.5 m below the floor, and leaving the backward
+  course boundary terminate; episode time limits truncate. Brief falls may recover.
 - Observation (`4 * (1 + hinges) * K + 2 + contacts + lidar` floats; 53 for the default biped): sin/cos at harmonics
   1..K of absolute torso pitch and all parent-relative hinge angles; the same Fourier
   features of each angular rate times the action period (angle change per action); world-frame
@@ -20,8 +21,8 @@ Each terrain slot independently selects a block, gap, or flat floor. Frequencies
 are probabilities per slot and must sum to at most one. Heights and widths are
 sampled uniformly from 50–100% of their configured maxima; `gap_height` is depth
 below the floor. Gaps have physical bottoms and vertical sides; later levels
-use 5–20 m depths without any gap-entry or fall kill rule. A clear starting platform
-precedes the slots. Resetting randomizes geometry without changing JAX shapes.
+use 5–20 m depths; sinking into one ends the episode. A clear starting platform
+precedes the slots and a clear run-out follows them. Resetting randomizes geometry without changing JAX shapes.
 
 Progress potential is `Phi(x) = progress_scale * min(x, course_length)`,
 saturating at the finish so running off the course earns no further progress.
@@ -31,11 +32,11 @@ uprightness score: falling loses progress potential, and recovery restores it. E
 An optional `upright_reward` adds a posture score per simulated second, weighted
 by torso height and uprightness. Moving backward loses progress reward;
 standing still adds no progress. An optional finish bonus rewards upright completion.
-Falls never terminate an episode.
+Brief falls can recover; a fall held for `fall_timeout` ends the episode.
 
 # Checkpoints and inspection
 
-`maton train --config configs/jobs/biped-ppo-s0.toml --output data/RUN`
+`maton train --config configs/jobs/biped-ppo-v2-s0.toml --output data/RUN`
 saves resolved settings in `run.json`. Outputs must be new directories.
 PPO checkpoints hold inference weights; Dreamer holds agent/optimizer state.
 Training resumes from saved progress; see [sessions](workflow.md#sessions-pause-resume-share).

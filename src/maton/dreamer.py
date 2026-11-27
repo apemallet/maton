@@ -241,8 +241,7 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
         with (sessions.directory(output) / "agent.pkl").open("rb") as file:
             agent.load(pickle.load(file))
         step, episodes, updates, prior_seconds = host["step"], host["episodes"], host["updates"], host["seconds"]
-        curriculum.level, curriculum.successes, curriculum.complete = (
-            host["curriculum"]["level"], host["curriculum"]["successes"], host["curriculum"]["complete"])
+        curriculum.restore(host["curriculum"])
         key = sessions.unkeys(jnp.asarray(host["key"], jnp.uint32))
         key, reset_key = jax.random.split(key)
         state = reset_fn(reset_key, curriculum.level)
@@ -254,8 +253,7 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
         _save_resume(agent, output, dict(step=step, episodes=episodes, updates=updates,
                                          seconds=prior_seconds + time.perf_counter() - started,
                                          key=np.asarray(sessions.keys(key)).tolist(),
-                                         curriculum=dict(level=curriculum.level, successes=curriculum.successes,
-                                                         complete=curriculum.complete)))
+                                         curriculum=curriculum.state()))
 
     step_fn = jax.jit(env.step)
     metrics_file = output / "metrics.jsonl"

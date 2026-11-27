@@ -180,8 +180,7 @@ def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, train
     if restored is not None:
         (state, carry, states, observation, first, key_data), host = restored
         key = sessions.unkeys(key_data)
-        curriculum.level, curriculum.successes, curriculum.complete = (
-            host["curriculum"]["level"], host["curriculum"]["successes"], host["curriculum"]["complete"])
+        curriculum.restore(host["curriculum"])
         saved = sessions.load(output, replay, "replay")
         if saved is not None and saved[1]["step"] == host["transitions"]:
             replay = saved[0]
@@ -226,8 +225,7 @@ def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, train
                     curriculum=curriculum.snapshot())
 
     def checkpoint(with_replay: bool) -> None:
-        host.update(curriculum=dict(level=curriculum.level, successes=curriculum.successes,
-                                    complete=curriculum.complete),
+        host.update(curriculum=curriculum.state(),
                     episode_return=episode_return.tolist(), seconds=prior_seconds + time.perf_counter() - started)
         if with_replay:
             sessions.save(output, replay, dict(step=host["transitions"]), "replay")
