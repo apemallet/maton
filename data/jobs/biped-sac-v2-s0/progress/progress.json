@@ -28,9 +28,5 @@
     "window": 10,
     "complete": false
   },
-  "latest": {
-    "steps": 524288,
-    "episode_return": 32.33021340232873,
-    "successes": 0
-  }
+  "latest": {}
 }
