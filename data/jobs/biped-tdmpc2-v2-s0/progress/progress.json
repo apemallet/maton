@@ -3,9 +3,9 @@
   "algorithm": "tdmpc2",
   "training_fingerprint": "9337b80e0f981668c9feb3425907a0ec75b1256313882ae77a8bf0c469c5ad37",
   "total": 524288,
-  "steps": 382232,
-  "complete": false,
-  "hours": 1.0076,
+  "steps": 524288,
+  "complete": true,
+  "hours": 1.3885,
   "sessions": [
     {
       "started": "2026-11-27T20:48:31+00:00",
@@ -30,6 +30,18 @@
       "device": "gpu",
       "revision": "adda0bddbb16d89f48016d9c49b6414cefa93c6d",
       "dirty": true
+    },
+    {
+      "started": "2026-11-27T21:51:58+00:00",
+      "hours": 0.3809,
+      "steps": [
+        382232,
+        524288
+      ],
+      "machine": "wslOnix",
+      "device": "gpu",
+      "revision": "fc5a440024fb1e95515ba0c549510e8b20347e14",
+      "dirty": true
     }
   ],
   "curriculum": {
@@ -41,8 +53,8 @@
     "complete": true
   },
   "latest": {
-    "steps": 380928,
-    "episode_return": 11.293905751322889,
-    "successes": 0
+    "steps": 524288,
+    "episode_return": 29.287132928051456,
+    "successes": 2
   }
 }

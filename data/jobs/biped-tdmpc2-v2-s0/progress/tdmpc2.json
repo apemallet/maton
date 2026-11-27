@@ -1,6 +1,6 @@
 {
   "algorithm": "tdmpc2",
-  "step": 376832,
+  "step": 524288,
   "observation_size": 53,
   "action_size": 4,
   "episode_length": 512,
