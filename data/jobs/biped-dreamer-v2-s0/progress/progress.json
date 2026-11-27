@@ -1,0 +1,32 @@
+{
+  "job": "biped-dreamer-v2-s0",
+  "algorithm": "dreamer",
+  "training_fingerprint": "b9668b068ed577731598df6d893f8297392b405ed8f0dc48332276ed0d1b663d",
+  "total": 524288,
+  "steps": 449441,
+  "complete": false,
+  "hours": 1.0005,
+  "sessions": [
+    {
+      "started": "2026-11-27T20:47:44+00:00",
+      "hours": 1.0005,
+      "steps": [
+        0,
+        449441
+      ],
+      "machine": "Mason3080",
+      "device": "cpu",
+      "revision": "153d5dbebbfd70040c6b121b55cc98520e3d64b4",
+      "dirty": true
+    }
+  ],
+  "curriculum": {
+    "level": 4,
+    "name": "dangerous-gaps",
+    "successes": 0,
+    "successes_required": 4,
+    "window": 10,
+    "complete": false
+  },
+  "latest": {}
+}

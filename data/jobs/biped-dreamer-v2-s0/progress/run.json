@@ -1,0 +1,476 @@
+{
+  "algorithm": "dreamer",
+  "seed": 0,
+  "training": {
+    "steps": 524288,
+    "learning_rate": 0.0003,
+    "checkpoint_every": 8192
+  },
+  "env": {
+    "timestep": 0.01,
+    "frame_skip": 4,
+    "episode_length": 512,
+    "lidar_count": 9,
+    "lidar_range": 3.0,
+    "reset_noise": 0.01,
+    "progress_scale": 20.0,
+    "progress_mode": "upright",
+    "control_cost": 0.0001,
+    "control_mode": "position",
+    "upright_reward": 0.1,
+    "finish_reward": 25.0,
+    "friction": 1.6,
+    "angle_harmonics": 2,
+    "fall_timeout": 1.0,
+    "sink_depth": 0.5
+  },
+  "curriculum": {
+    "levels": [
+      {
+        "name": "flat-walking",
+        "successes_required": 4,
+        "terrain": {
+          "slots": 6,
+          "spacing": 1.0,
+          "start_length": 1.0,
+          "block_frequency": 0.0,
+          "block_height": 0.12,
+          "block_width": 0.35,
+          "gap_frequency": 0.0,
+          "gap_height": 0.15,
+          "gap_width": 0.3,
+          "run_out": 1.0
+        },
+        "window": 10
+      },
+      {
+        "name": "small-blocks",
+        "successes_required": 4,
+        "terrain": {
+          "slots": 6,
+          "spacing": 1.0,
+          "start_length": 1.0,
+          "block_frequency": 0.25,
+          "block_height": 0.05,
+          "block_width": 0.2,
+          "gap_frequency": 0.0,
+          "gap_height": 0.15,
+          "gap_width": 0.3,
+          "run_out": 1.0
+        },
+        "window": 10
+      },
+      {
+        "name": "larger-blocks",
+        "successes_required": 4,
+        "terrain": {
+          "slots": 6,
+          "spacing": 1.0,
+          "start_length": 1.0,
+          "block_frequency": 0.5,
+          "block_height": 0.12,
+          "block_width": 0.3,
+          "gap_frequency": 0.0,
+          "gap_height": 0.15,
+          "gap_width": 0.3,
+          "run_out": 1.0
+        },
+        "window": 10
+      },
+      {
+        "name": "shallow-recesses",
+        "successes_required": 4,
+        "terrain": {
+          "slots": 6,
+          "spacing": 1.0,
+          "start_length": 1.0,
+          "block_frequency": 0.3,
+          "block_height": 0.12,
+          "block_width": 0.3,
+          "gap_frequency": 0.2,
+          "gap_height": 0.15,
+          "gap_width": 0.25,
+          "run_out": 1.0
+        },
+        "window": 10
+      },
+      {
+        "name": "dangerous-gaps",
+        "successes_required": 4,
+        "terrain": {
+          "slots": 6,
+          "spacing": 1.0,
+          "start_length": 1.0,
+          "block_frequency": 0.3,
+          "block_height": 0.18,
+          "block_width": 0.3,
+          "gap_frequency": 0.35,
+          "gap_height": 10.0,
+          "gap_width": 0.45,
+          "run_out": 1.0
+        },
+        "window": 10
+      },
+      {
+        "name": "treacherous-terrain",
+        "successes_required": 4,
+        "terrain": {
+          "slots": 6,
+          "spacing": 1.0,
+          "start_length": 1.0,
+          "block_frequency": 0.35,
+          "block_height": 0.22,
+          "block_width": 0.35,
+          "gap_frequency": 0.55,
+          "gap_height": 20.0,
+          "gap_width": 0.65,
+          "run_out": 1.0
+        },
+        "window": 10
+      }
+    ]
+  },
+  "walker": {
+    "name": "biped",
+    "bodies": [
+      {
+        "name": "torso",
+        "geoms": [
+          {
+            "type": "capsule",
+            "size": [
+              0.09
+            ],
+            "mass": 3.0,
+            "pos": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "fromto": [
+              0,
+              0,
+              -0.15,
+              0,
+              0,
+              0.15
+            ],
+            "contact": false,
+            "rgba": [
+              0.2,
+              0.35,
+              0.8,
+              1.0
+            ]
+          }
+        ],
+        "parent": null,
+        "pos": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "joint": null
+      },
+      {
+        "name": "thigh_left",
+        "geoms": [
+          {
+            "type": "capsule",
+            "size": [
+              0.045
+            ],
+            "mass": 0.8,
+            "pos": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "fromto": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              -0.35
+            ],
+            "contact": false,
+            "rgba": [
+              0.2,
+              0.35,
+              0.8,
+              1.0
+            ]
+          }
+        ],
+        "parent": "torso",
+        "pos": [
+          0,
+          -0.11,
+          -0.15
+        ],
+        "joint": {
+          "name": "hip_left",
+          "range": [
+            -1.3962634015954636,
+            1.3962634015954636
+          ],
+          "damping": 0.5,
+          "armature": 0.02,
+          "motor": {
+            "torque_limit": 20.0,
+            "kp": 30.0,
+            "kd": 2.0,
+            "target_range": [
+              -0.8,
+              0.8
+            ],
+            "neutral": 0.0
+          }
+        }
+      },
+      {
+        "name": "shin_left",
+        "geoms": [
+          {
+            "type": "capsule",
+            "size": [
+              0.035
+            ],
+            "mass": 0.5,
+            "pos": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "fromto": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              -0.35
+            ],
+            "contact": false,
+            "rgba": [
+              0.2,
+              0.35,
+              0.8,
+              1.0
+            ]
+          },
+          {
+            "type": "capsule",
+            "size": [
+              0.075
+            ],
+            "mass": 0.15,
+            "pos": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "fromto": [
+              -0.08,
+              0,
+              -0.35,
+              0.08,
+              0,
+              -0.35
+            ],
+            "contact": true,
+            "rgba": [
+              0.2,
+              0.35,
+              0.8,
+              1.0
+            ]
+          }
+        ],
+        "parent": "thigh_left",
+        "pos": [
+          0,
+          0,
+          -0.35
+        ],
+        "joint": {
+          "name": "knee_left",
+          "range": [
+            -0.08726646259971647,
+            2.181661564992912
+          ],
+          "damping": 0.5,
+          "armature": 0.02,
+          "motor": {
+            "torque_limit": 20.0,
+            "kp": 30.0,
+            "kd": 2.0,
+            "target_range": [
+              -0.08,
+              1.3
+            ],
+            "neutral": 0.0
+          }
+        }
+      },
+      {
+        "name": "thigh_right",
+        "geoms": [
+          {
+            "type": "capsule",
+            "size": [
+              0.045
+            ],
+            "mass": 0.8,
+            "pos": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "fromto": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              -0.35
+            ],
+            "contact": false,
+            "rgba": [
+              0.2,
+              0.35,
+              0.8,
+              1.0
+            ]
+          }
+        ],
+        "parent": "torso",
+        "pos": [
+          0,
+          0.11,
+          -0.15
+        ],
+        "joint": {
+          "name": "hip_right",
+          "range": [
+            -1.3962634015954636,
+            1.3962634015954636
+          ],
+          "damping": 0.5,
+          "armature": 0.02,
+          "motor": {
+            "torque_limit": 20.0,
+            "kp": 30.0,
+            "kd": 2.0,
+            "target_range": [
+              -0.8,
+              0.8
+            ],
+            "neutral": 0.0
+          }
+        }
+      },
+      {
+        "name": "shin_right",
+        "geoms": [
+          {
+            "type": "capsule",
+            "size": [
+              0.035
+            ],
+            "mass": 0.5,
+            "pos": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "fromto": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              -0.35
+            ],
+            "contact": false,
+            "rgba": [
+              0.2,
+              0.35,
+              0.8,
+              1.0
+            ]
+          },
+          {
+            "type": "capsule",
+            "size": [
+              0.075
+            ],
+            "mass": 0.15,
+            "pos": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "fromto": [
+              -0.08,
+              0,
+              -0.35,
+              0.08,
+              0,
+              -0.35
+            ],
+            "contact": true,
+            "rgba": [
+              0.2,
+              0.35,
+              0.8,
+              1.0
+            ]
+          }
+        ],
+        "parent": "thigh_right",
+        "pos": [
+          0,
+          0,
+          -0.35
+        ],
+        "joint": {
+          "name": "knee_right",
+          "range": [
+            -0.08726646259971647,
+            2.181661564992912
+          ],
+          "damping": 0.5,
+          "armature": 0.02,
+          "motor": {
+            "torque_limit": 20.0,
+            "kp": 30.0,
+            "kd": 2.0,
+            "target_range": [
+              -0.08,
+              1.3
+            ],
+            "neutral": 0.0
+          }
+        }
+      }
+    ],
+    "spawn_height": 1.0
+  },
+  "dreamer": {
+    "batch_size": 4,
+    "batch_length": 16,
+    "train_every": 4,
+    "replay_size": 32768,
+    "hidden": 64,
+    "deter": 128,
+    "stoch": 8,
+    "classes": 8,
+    "imag_length": 15,
+    "platform": "cpu",
+    "policy_minstd": 0.03,
+    "policy_maxstd": 0.3,
+    "optimizer_warmup": 1000,
+    "learning_rate": 0.0001
+  }
+}

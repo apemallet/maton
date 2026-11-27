@@ -1,0 +1,17 @@
+{
+  "steps": 449441,
+  "complete": false,
+  "updates": 112356,
+  "episodes": 2105,
+  "seconds": 3592.0756910000055,
+  "checkpoint": "data\\jobs\\biped-dreamer-v2-s0\\progress\\dreamer.pkl",
+  "upstream_commit": "e01491fad6434b2245a3b8ca201dd7faedcc458c",
+  "curriculum": {
+    "level": 4,
+    "name": "dangerous-gaps",
+    "successes": 0,
+    "successes_required": 4,
+    "window": 10,
+    "complete": false
+  }
+}
