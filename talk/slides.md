@@ -4,7 +4,7 @@
 
 ### Teaching procedurally built walkers to cross obstacle courses with world models
 
-<p class="small">DreamerV3 vs PPO on MuJoCo MJX · 15 minutes</p>
+<p class="small">TD-MPC2, SAC, DreamerV3 and PPO on MuJoCo MJX · 15 minutes</p>
 
 Note:
 30 s. One sentence on why: can a learned world model make locomotion over a
@@ -18,7 +18,7 @@ curriculum cheaper and more general than model-free RL?
 
 - **Proposal:** TD-MPC2 vs SAC/PPO, ≥ 3 seeds, evaluated on unseen conditions
 - **Unseen conditions, in order:** obstacle courses → physics (gravity, friction) → walker configurations
-- **Built so far:** our own MJX environment (instead of BipedalWalker-v3), with DreamerV3 vs PPO
+- **Built:** our own MJX environment (instead of BipedalWalker-v3) with TD-MPC2, SAC, PPO and DreamerV3
 
 <div class="verdict">
 
@@ -61,7 +61,7 @@ That design choice comes back in the diagnosis.
 
 <p class="kicker">Infrastructure</p>
 
-## One TOML file produces every artifact
+## One TOML file per experiment, trained in sessions
 
 <div class="pipeline">
 <span class="card">job + walker + curriculum</span><span class="arrow">→</span>
@@ -70,14 +70,14 @@ That design choice comes back in the diagnosis.
 <span class="card">render/*.mp4</span>
 </div>
 
-- Training outputs are **protected and fingerprinted**: changed settings need a new job name
-- Evaluations save **exact physics trajectories**, so videos rebuild without the policy
-- Provenance: git revision, source and lockfile digests
-- 102 tests; both trainers run end to end
+- **Resumable sessions:** `just train job 2` trains for 2 hours; Ctrl-C pauses; resumes match uninterrupted runs bit for bit
+- **Shared progress:** `just share job` commits weights via Git LFS; `just status` shows steps, hours, machines
+- Published training is **protected and fingerprinted**; evaluations save exact physics trajectories
+- Four trainers behind one registry; 139 tests
 
 Note:
-1 min. Keep this short. The point: experiments are now cheap to define and
-reproducible, which is what the next steps need.
+1 min. Keep this short. The point: experiments are cheap to define, reproducible,
+and can be split across laptops and the GPU box.
 
 ---
 
@@ -169,25 +169,24 @@ Note:
 
 <p class="kicker">Algorithm choice</p>
 
-## Back to the proposal: TD-MPC2
+## Back to the proposal: TD-MPC2 and SAC are built
 
-| | DreamerV3 | TD-MPC2 | PPO at scale | FastTD3 |
-| --- | --- | --- | --- | --- |
-| Built for state-based continuous control | ok | **strong** | standard | **strong** |
-| Uses MJX parallelism | not in our harness | single env + planning | **native** | **native** |
-| Decoder for "dreams" | **yes** | no (needs a probe) | no | no |
-| Fits our JAX stack | **pinned upstream** | PyTorch (JAX ports exist) | **ours** | PyTorch |
-| Hyperparameter robustness | good | **one config, 100+ tasks** | needs tuning | good |
+| Trainer | Kind | Cost per 524k-step run (M1 Pro CPU) | Notes |
+| --- | --- | --- | --- |
+| PPO | model-free, on-policy | **≈ 8 min** | 16 envs |
+| SAC | model-free, off-policy | **≈ 50 min** | proposal baseline; shares TD-MPC2's replay and update ratio |
+| DreamerV3 | world model, decoder | **≈ 45 min** | shrunk model, 1 env; keeps the "dreams" idea alive |
+| TD-MPC2 | world model, planning | **≈ 1.5 days** | official 5M model; compute-bound → RTX 3080 |
 
 <div class="verdict">
 
-**Yes, as an addition, not a swap.** A compact JAX port (~600 lines) under the same jobs and evaluations; keep PPO, and decide whether Dreamer stays.
+Same environment, budget, evaluations and videos for all four. TD-MPC2 trades compute for samples, so judge it on **success vs environment steps**, and run it on the GPU.
 
 </div>
 
 Note:
-2 min. TD-MPC2 was the proposal's method and fits the task shape. It won't fix
-the protocol problems on its own, and it has no decoder for the "dreams" idea.
+2 min. The TD-MPC2 port is ~330 lines of Equinox on a shared off-policy driver.
+Planning is batched across environments; evaluation plans without noise.
 
 ---
 
@@ -200,7 +199,7 @@ the protocol problems on its own, and it has no decoder for the "dreams" idea.
 | 1 · Protocol: ≥ 5 seeds, success rate with CIs, GPU profile | No setting ships on fewer than 5 seeds |
 | 2 · Scale PPO: 1–4k environments, 50M+ steps | All seeds walk → the environment is learnable; compare sample efficiency |
 | 3 · Falls: terminate or truncate on a fall | Seed variance drops → keep it |
-| 4 · TD-MPC2 (JAX) vs PPO (vs Dreamer), trained on levels 1–3 | Proposal metric: zero-shot completion on held-out courses, plus learning curves and wall-clock |
+| 4 · TD-MPC2 vs SAC vs PPO (vs Dreamer) on the 3080, levels 1–3 | Proposal metric: zero-shot completion on held-out courses, plus learning curves and wall-clock |
 
 Note:
 1.5 min.
@@ -211,8 +210,8 @@ Note:
 
 ## What we need from you
 
-- **Compute:** the 5-seed rerun of today's jobs fits on a laptop (≈ 4.5 h). Scaled PPO and full-size Dreamer need a GPU: how many hours?
-- **Scope:** the proposal says TD-MPC2 + SAC/PPO. Keep Dreamer as an extra arm (and the "dreams" visuals), or drop it?
+- **Compute:** PPO, SAC and Dreamer seeds fit on laptops; TD-MPC2 needs the 3080. Who runs which sessions?
+- **Scope:** keep Dreamer as a fourth arm (and the "dreams" visuals), or drop it?
 - **Target:** what headline result do we want in four weeks?
 
 Note:
