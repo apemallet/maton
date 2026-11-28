@@ -56,6 +56,9 @@ of the saved MuJoCo geometry. It needs no display, GPU, or policy checkpoint.
 Videos use Matplotlib's `dark_background` style, with stable limb brightness
 offsets (±15%) to help track each segment through motion.
 Terrain has bright cyan borders and a subtle dark blue fill.
+Torso-relative eye rays are faint gold, brighten on terrain hits (more for nearer
+hits), and end in small glowing dots. Misses extend to the sensor range without dots.
+Recordings save lidar count/range; older episodes use nine rays over 3 m.
 
 Smoke tests validate finite dynamics, optimizer updates, checkpoint reload, and
 video generation. These budgets establish integration, not locomotion performance.

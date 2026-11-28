@@ -6,3 +6,4 @@
 - add a cliff that requires generalization to overcome; very poor reward gradient
 - let's make it do a jump
 - color each limb slightly different so we can tell if it's actually taking a step
+- let's give him a mouth and patch in either the critic surprisal or reward higher derivative

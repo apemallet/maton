@@ -2,18 +2,22 @@ import json
 from types import SimpleNamespace
 
 import imageio.v2 as imageio
+import equinox as eqx
+import jax
 import matplotlib as mpl
+from matplotlib.figure import Figure
 import mujoco
 import numpy as np
+import pytest
 
 from maton.env import EnvConfig, WalkerEnv
 from maton.replay import record, summarize_episodes
-from maton.rendering import limb_colors, render_episode
+from maton.rendering import draw_eye_rays, eye_rays, limb_colors, render_episode
 from maton.terrain import TerrainConfig
 
 
 def test_record_exact_course_and_render_without_policy(tmp_path):
-    env = WalkerEnv(EnvConfig(episode_length=2, frame_skip=1),
+    env = WalkerEnv(EnvConfig(episode_length=2, frame_skip=1, lidar_count=5, lidar_range=4),
                     TerrainConfig(slots=1, block_frequency=0, gap_frequency=1))
     episode = record(env, lambda _: np.zeros(4), tmp_path / "episode", 9)
     saved = np.load(episode / "trajectory.npz")
@@ -23,7 +27,9 @@ def test_record_exact_course_and_render_without_policy(tmp_path):
     assert saved["terrain"][0, 0] < 0
     model = mujoco.MjModel.from_xml_path(str(episode / "model.xml"))
     assert np.isclose(model.geom_pos[2, 2] + model.geom_size[2, 2], saved["terrain"][0, 0])
-    assert json.loads((episode / "episode.json").read_text())["truncated"]
+    metadata = json.loads((episode / "episode.json").read_text())
+    assert metadata["truncated"]
+    assert metadata["lidar_count"] == 5 and metadata["lidar_range"] == 4
     summary = summarize_episodes([episode], tmp_path / "summary.json")
     assert summary["episodes"] == 1
     assert summary["successes"] == 0
@@ -44,6 +50,8 @@ def test_record_exact_course_and_render_without_policy(tmp_path):
         # Blue torso must appear, as well as terrain and feet.
         blue = (frame[..., 2].astype(float) > frame[..., 0] + 50) & (frame[..., 0] < 100)
         assert blue.sum() > 100
+        gold = (frame[..., 0] > 130) & (frame[..., 1] > 100) & (frame[..., 2] < frame[..., 0] * 0.8)
+        assert gold.sum() > 5
     assert video.stat().st_size > 0
 
 
@@ -61,3 +69,39 @@ def test_limb_brightness_is_stable_and_shared_by_each_bodys_geometries():
     np.testing.assert_array_equal(colors[:, 3], original[:, 3])
     np.testing.assert_array_equal(model.geom_rgba, original)
     np.testing.assert_array_equal(limb_colors(model), colors)
+
+
+@pytest.mark.parametrize("x,pitch,reach", [(0, 0, 3), (2.7, 0.6, 4), (2.7, -1.2, 30)])
+def test_eye_rays_match_sensor_on_rotated_torso_and_gap(x, pitch, reach):
+    env = WalkerEnv(EnvConfig(lidar_count=7, lidar_range=reach, reset_noise=0),
+                    TerrainConfig(slots=1, block_frequency=0, gap_frequency=1, gap_height=5))
+    state = jax.jit(env.reset)(jax.random.key(4))
+    state = eqx.tree_at(lambda s: s.data.qpos, state, state.data.qpos.at[0].set(x).at[2].set(pitch))
+    model = env.cpu_model(state)
+    data = mujoco.MjData(model)
+    data.qpos[:] = np.asarray(state.data.qpos)
+    mujoco.mj_forward(model, data)
+    origin, endpoints, hits = eye_rays(model, data, 7, reach)
+    distances = np.linalg.norm(endpoints - origin, axis=-1)
+    expected = np.asarray(env.lidar(state))
+    np.testing.assert_allclose(distances / reach, expected, atol=1e-6)
+    np.testing.assert_array_equal(hits, expected < 1)
+    np.testing.assert_allclose(origin, [x, env.walker.spawn_height])
+
+
+def test_eye_ray_hits_are_brighter_and_marked_but_misses_are_not():
+    model = SimpleNamespace(geom_bodyid=np.array([0, 1]),
+                            geom_size=np.array([[10, 1, 0.5], [1, 1, 1]]))
+    data = SimpleNamespace(xpos=np.array([[0, 0, 0], [0, 0, 1]]), qpos=np.zeros(3),
+                           geom_xpos=np.array([[0, 0, -0.5], [0, 0, 1]]))
+    origin, endpoints, hits = eye_rays(model, data, 5, 3)
+    assert hits.any() and not hits.all()
+    np.testing.assert_allclose(endpoints[hits, 1], 0, atol=1e-8)
+    np.testing.assert_allclose(np.linalg.norm(endpoints[~hits] - origin, axis=-1), 3)
+    axes = Figure().subplots()
+    draw_eye_rays(model, data, axes, 5, 3)
+    rays = [line for line in axes.lines if line.get_marker() != "o"]
+    markers = [line for line in axes.lines if line.get_marker() == "o"]
+    assert len(rays) == 5 and len(markers) == 2 * hits.sum()
+    assert min(line.get_alpha() for line, hit in zip(rays, hits) if hit) > max(
+        line.get_alpha() for line, hit in zip(rays, hits) if not hit)

@@ -46,7 +46,8 @@ def record(env: Any, policy: Callable, output: Path, seed: int, level: int = 0) 
                    success=bool(state.success),
                    distance=float(positions[-1][0] - positions[0][0]),
                    terminated=bool(state.terminated), truncated=bool(state.truncated),
-                   dt=env.config.timestep * env.config.frame_skip)
+                   dt=env.config.timestep * env.config.frame_skip,
+                   lidar_count=env.config.lidar_count, lidar_range=env.config.lidar_range)
     poses = np.asarray(positions)
     summary["upright_fraction"] = float(np.mean((poses[:, 1] + env.walker.spawn_height >= 0.5 * env.walker.spawn_height) &
                                                 (np.cos(poses[:, 2]) >= np.cos(1.4))))

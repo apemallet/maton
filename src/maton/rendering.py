@@ -21,6 +21,39 @@ def limb_colors(model: Any) -> np.ndarray:
     return colors
 
 
+def eye_rays(model: Any, data: Any, count: int, reach: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Planar lidar segments against saved terrain, excluding the walker's body."""
+    origin = np.asarray(data.xpos[1])[[0, 2]]
+    angle = np.linspace(-np.pi / 2, np.pi / 12, count) - data.qpos[2]
+    direction = np.stack((np.cos(angle), np.sin(angle)), axis=-1)
+    # Match the sensor's slab intersection, including nearly parallel rays.
+    direction = np.where(np.abs(direction) < 1e-6, 1e-6, direction)
+    terrain = model.geom_bodyid == 0
+    centers = data.geom_xpos[terrain][:, [0, 2]]
+    sizes = model.geom_size[terrain][:, [0, 2]]
+    t1 = (centers - sizes - origin) / direction[:, None, :]
+    t2 = (centers + sizes - origin) / direction[:, None, :]
+    near = np.maximum(np.minimum(t1, t2).max(axis=-1), 0)
+    far = np.maximum(t1, t2).min(axis=-1)
+    distance = np.minimum(np.where(far >= near, near, np.inf).min(axis=-1), reach)
+    return origin, origin + direction * distance[:, None], distance < reach
+
+
+def draw_eye_rays(model: Any, data: Any, axes: Any, count: int, reach: float) -> None:
+    """Faint gold rays; terrain hits brighten and end in a small luminous dot."""
+    origin, endpoints, hits = eye_rays(model, data, count, reach)
+    for endpoint, hit in zip(endpoints, hits, strict=True):
+        proximity = 1 - np.clip(np.linalg.norm(endpoint - origin) / reach, 0, 1)
+        axes.plot([origin[0], endpoint[0]], [origin[1], endpoint[1]],
+                  color="#ffd78a", linewidth=0.85, alpha=0.24 + 0.22 * proximity if hit else 0.16,
+                  solid_capstyle="round", zorder=0.8)
+        if hit:
+            axes.plot(*endpoint, "o", color="#ffd78a", markersize=7, alpha=0.09,
+                      markeredgewidth=0, zorder=3)
+            axes.plot(*endpoint, "o", color="#ffd78a", markersize=3.2, alpha=0.95,
+                      markeredgewidth=0, zorder=3)
+
+
 def draw_model(model: Any, data: Any, axes: Any, plane: tuple[int, int] = (0, 2),
                *, colors: np.ndarray | None = None) -> None:
     """Draw sphere, capsule, cylinder, and box silhouettes in a coordinate plane."""
@@ -80,6 +113,7 @@ def render_episode(episode: Path, output: Path | None = None) -> Path:
         rewards = saved["rewards"]
     metadata = json.loads((episode / "episode.json").read_text())
     dt = metadata["dt"]
+    lidar_count, lidar_range = metadata.get("lidar_count", 9), metadata.get("lidar_range", 3.0)
     with context("dark_background"), imageio.get_writer(
         str(output), fps=1 / dt, codec="libx264", macro_block_size=2,
     ) as writer:
@@ -94,6 +128,7 @@ def render_episode(episode: Path, output: Path | None = None) -> Path:
             axes.set(xlim=(center - 3, center + 4), ylim=(-1.4, 2.4),
                      xlabel="distance (m)", ylabel="height (m)", aspect="equal")
             draw_model(model, data, axes, colors=colors)
+            draw_eye_rays(model, data, axes, lidar_count, lidar_range)
             score = float(np.sum(rewards[:index]))
             axes.set_title(f"t={index * dt:.2f}s   x={qpos[0]:.2f}m   return={score:.3f}")
             canvas.draw()
