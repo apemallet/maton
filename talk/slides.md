@@ -99,7 +99,7 @@ No run has passed level 1.
 </div>
 <div>
 
-<div class="todo">VIDEO: biped-dreamer-s0 · level-1 · episode 0 (success)<br>next to the seed-1 failure</div>
+<div class="todo">VIDEO: recover retired biped-dreamer-s0 footage from Git history · level-1 · episode 0 (success)<br>next to the seed-1 failure</div>
 
 </div>
 </div>
