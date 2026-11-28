@@ -20,9 +20,18 @@ class TerrainConfig:
     gap_frequency: float = 0.1
     gap_height: float = 0.15
     gap_width: float = 0.3
+    central_gap_width: float = 0.0  # exact, guaranteed pit in the middle slot; zero disables
+    central_gap_depth: float = 0.0
     run_out: float = 1.0  # clear floor between the last obstacle slot and the finish line
 
     def __post_init__(self):
+        if not (math.isfinite(self.central_gap_width) and math.isfinite(self.central_gap_depth)
+                and 0 <= self.central_gap_width < self.spacing and self.central_gap_depth >= 0):
+            raise ValueError("Central gap needs a finite width inside slot spacing and nonnegative depth")
+        if bool(self.central_gap_width) != bool(self.central_gap_depth):
+            raise ValueError("Central gap width and depth must both be positive or both zero")
+        if self.central_gap_width and (self.slots % 2 != 1 or self.start_length != self.run_out):
+            raise ValueError("Central gap needs odd slots and equal start_length/run_out")
         if self.slots < 1 or self.spacing <= 0 or self.start_length < 1:
             raise ValueError("Course needs slots, positive spacing, and at least 1m clear start")
         if not (math.isfinite(self.run_out) and self.run_out >= 0):
@@ -50,7 +59,10 @@ def sample_terrain(key: Array, config: TerrainConfig) -> Array:
     gap = (kind >= config.block_frequency) & (kind < config.block_frequency + config.gap_frequency)
     height = jnp.where(block, config.block_height, jnp.where(gap, -config.gap_height, 0.0))
     width = jnp.where(block, config.block_width, config.gap_width)
-    return jnp.stack((height * scale[:, 0], width * scale[:, 1]), axis=-1)
+    terrain = jnp.stack((height * scale[:, 0], width * scale[:, 1]), axis=-1)
+    if config.central_gap_width:
+        terrain = terrain.at[config.slots // 2].set(jnp.array([-config.central_gap_depth, config.central_gap_width]))
+    return terrain
 
 
 BEYOND_FINISH = 2.0  # floor past the finish line, so no course ends in a drop

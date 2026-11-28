@@ -1,0 +1,25 @@
+# Pass the course first, then optimize efficiency on identical terrain.
+[terrain]
+# 1 m clear start + five 1.25 m slots + 1 m run-out = 8.25 m.
+slots = 5
+spacing = 1.25
+start_length = 1.0
+run_out = 1.0
+block_frequency = 0.35
+block_height = 0.22
+block_width = 0.35
+gap_frequency = 0.0  # exactly one hole, never additional random trenches
+central_gap_width = 0.85  # exact dimensions, centered at x=4.125 m
+central_gap_depth = 0.8   # shallower than the biped's ~1.16 m standing height
+
+[[levels]]
+name = "no-mans-land"
+successes_required = 4
+window = 10
+# Four finishes among the last ten episodes promote to the efficiency level.
+efficiency_penalty = 0.0
+
+[[levels]]
+name = "no-mans-land-efficient"
+# Active immediately on entering this level, and for the rest of training.
+efficiency_penalty = 2.0  # reward per J/(body mass * gravity)

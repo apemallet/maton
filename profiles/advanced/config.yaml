@@ -1,0 +1,9 @@
+# Long single-method runs. Use on a GPU host; this profile does not allocate a GPU.
+cores: 1
+resources:
+  training_slots: 1
+printshellcmds: true
+set-resources:
+  train:
+    mem_mb: 16384
+    runtime: 4320  # minutes; 72 h wall-clock allowance

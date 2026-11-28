@@ -2,6 +2,7 @@
 
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+import math
 import tomllib
 from typing import Any
 
@@ -15,8 +16,11 @@ class Level:
     successes_required: int
     terrain: TerrainConfig
     window: int = 10
+    efficiency_penalty: float = 0.0  # reward per J/(body mass * gravity), active throughout this level
 
     def __post_init__(self):
+        if not math.isfinite(self.efficiency_penalty) or self.efficiency_penalty < 0:
+            raise ValueError("efficiency_penalty must be finite and nonnegative")
         if not self.name:
             raise ValueError("Curriculum levels need names")
         if type(self.successes_required) is not int or self.successes_required < 1:
@@ -38,9 +42,6 @@ class CurriculumConfig:
             raise ValueError("Levels must share slots, spacing, start_length, and run_out (fixed MJX shapes)")
         if len({x.name for x in self.levels}) != len(self.levels):
             raise ValueError("Curriculum level names must be unique")
-        first = self.levels[0].terrain
-        if len(self.levels) > 1 and (first.block_frequency or first.gap_frequency):
-            raise ValueError("The first curriculum level must be flat")
 
     @classmethod
     def load(cls, path: Path) -> "CurriculumConfig":
@@ -55,11 +56,11 @@ class CurriculumConfig:
         required, window = values.get("successes_required", 4), values.get("window", 10)
         levels = []
         for entry in values.get("levels", []):
-            if entry.keys() - {"name", "successes_required", "window", "terrain"}:
+            if entry.keys() - {"name", "successes_required", "window", "terrain", "efficiency_penalty"}:
                 raise ValueError("Unknown curriculum level settings")
             levels.append(Level(entry["name"], entry.get("successes_required", required),
                                 TerrainConfig(**(shared | entry.get("terrain", {}))),
-                                entry.get("window", window)))
+                                entry.get("window", window), entry.get("efficiency_penalty", 0.0)))
         return cls(tuple(levels))
 
     def to_dict(self) -> dict[str, Any]:
@@ -72,6 +73,11 @@ class CurriculumProgress:
     level: int = 0
     recent: list[bool] = field(default_factory=list)  # outcomes at this level, oldest first
     complete: bool = False
+
+    @property
+    def efficiency_weight(self) -> float:
+        """The active level defines its reward, independently of curriculum completion."""
+        return self.config.levels[self.level].efficiency_penalty
 
     @property
     def successes(self) -> int:
@@ -103,4 +109,4 @@ class CurriculumProgress:
         level = self.config.levels[self.level]
         return dict(level=self.level, name=level.name, successes=self.successes,
                     successes_required=level.successes_required, window=level.window,
-                    complete=self.complete)
+                    complete=self.complete, efficiency_weight=self.efficiency_weight)

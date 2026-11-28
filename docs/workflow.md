@@ -1,7 +1,7 @@
 # Jobs and artifacts
 
-`configs/jobs/{job}.toml` owns `data/jobs/{job}/`. Job/evaluation names use lowercase
-kebab-case. Prefer `{walker}-{algorithm}-s{seed}` plus a descriptive variant.
+`configs/jobs/{job}.toml` owns `data/jobs/{job}/`. Job names use alphanumeric,
+hyphen-separated segments; evaluations use lowercase kebab-case. Job names may include directory segments (for example `advanced/biped-tdmpc2-NML-s0`); artifact paths mirror those segments. Prefer `{walker}-{algorithm}-s{seed}` plus a descriptive variant.
 Names identify experiments; settings are read from TOML, never inferred from names.
 
 ```text
@@ -52,9 +52,10 @@ steps = 524_288          # additional transitions for this child
 learning_rate = 0.00003
 ```
 
-- `extends` names one job, without `.toml`. Tables merge recursively; values and arrays
+- `extends` names one job relative to `configs/jobs/`, without `.toml`. Tables merge recursively; values and arrays
   replace inherited values. Evaluations and `continue_from` inherit too. References
-  stay relative to the TOML that declares them. Cycles are rejected.
+  stay relative to the TOML that declares them. Set `inherit_evaluations = false`
+  to replace inherited protocols (useful for a shorter curriculum). Cycles are rejected.
 - Inheritance alone reuses settings. `continue_from` independently selects source
   weights; omit `checkpoint` for `final`, or select `step-XXXXXXXX` at a saved count.
   `final` is the completed source job's latest checkpoint, published under `train/`.
@@ -145,3 +146,19 @@ For remote execution, install the appropriate Snakemake executor plugin and pass
 an executor profile with `--profile PATH`. Put scheduler/GPU allocation there;
 set `dreamer.platform` in the job for the model's compute platform. No remote
 provider is assumed or configured by this repository.
+
+# Advanced training
+
+The long TD-MPC2 child lives in `configs/jobs/advanced/`; its [course and efficiency gate](curriculum.md#no-mans-land)
+are separate from the baseline curriculum. The profile supplies 16 GB memory and
+72 h runtime allowances; use a GPU host or add an executor profile for your scheduler.
+
+```sh
+just job advanced/biped-tdmpc2-NML-s0 --profile profiles/advanced -n
+just job advanced/biped-tdmpc2-NML-s0 --profile profiles/advanced
+# After the parent train/ exists, bounded sessions also work:
+just train advanced/biped-tdmpc2-NML-s0 2
+```
+
+The DAG includes `biped-tdmpc2-v2-s0/train` → child `train` → 100 held-out evaluations on level 2,
+three videos, and training plots. Status discovers nested jobs; share uses their full names.

@@ -80,8 +80,8 @@ def test_invalid_curricula():
         CurriculumConfig((Level("one", 1, flat), Level("two", 1, replace(flat, slots=2))))
     with pytest.raises(ValueError, match="share"):
         CurriculumConfig((Level("one", 1, flat), Level("two", 1, replace(flat, run_out=2.0))))
-    with pytest.raises(ValueError, match="flat"):
-        CurriculumConfig((Level("one", 1, TerrainConfig()), Level("two", 1, flat)))
+    # Fine-tuning curricula may start directly on hard terrain.
+    CurriculumConfig((Level("one", 1, TerrainConfig()), Level("two", 1, TerrainConfig())))
 
 
 def test_sinking_into_a_deep_gap_ends_the_episode_with_valid_collision_and_lidar_geometry():
@@ -118,3 +118,51 @@ def test_finish_line_ends_every_episode_but_only_upright_finishes_succeed():
     assert bool(upright.success) and bool(upright.terminated)
     fallen = step(eqx.tree_at(lambda s: s.data.qpos, state, qpos.at[2].set(1.6)), jnp.zeros(4))
     assert bool(fallen.terminated) and not bool(fallen.success)
+
+
+def test_efficiency_is_enabled_by_promotion_and_survives_completion_and_resume():
+    terrain = TerrainConfig()
+    config = CurriculumConfig((Level('hard', 4, terrain, window=10),
+                               Level('efficient', 4, terrain, window=10, efficiency_penalty=2.0)))
+    progress = CurriculumProgress(config)
+    for result in [True, True, True, False, False]:
+        progress.record(result, 0)
+        assert progress.efficiency_weight == 0
+    progress.record(True, 1)  # stale episode from another level
+    assert progress.efficiency_weight == 0
+    progress.record(True, 0)
+    assert not progress.complete and progress.level == 1 and progress.efficiency_weight == 2
+    for _ in range(20):
+        progress.record(False, 1)
+    assert progress.efficiency_weight == 2  # remains active before final-level success
+    for _ in range(4):
+        progress.record(True, 1)
+    assert progress.complete and progress.efficiency_weight == 2
+    restored = CurriculumProgress(config)
+    restored.restore(progress.state())
+    assert restored.snapshot()['efficiency_weight'] == 2
+    assert CurriculumConfig.from_dict(config.to_dict()) == config
+
+
+@pytest.mark.parametrize('penalty', [-1, float('nan'), float('inf')])
+def test_invalid_efficiency_penalty(penalty):
+    with pytest.raises(ValueError, match='efficiency_penalty'):
+        Level('hard', 4, TerrainConfig(), efficiency_penalty=penalty)
+
+
+def test_standing_in_no_mans_land_hole_is_recoverable():
+    config = Config.load('configs/jobs/advanced/biped-tdmpc2-NML-s0.toml')
+    env = config.environment()
+    state = jax.jit(env.reset)(jax.random.key(0))
+    qpos = state.data.qpos.at[0].set(env.terrain_config.length / 2).at[1].set(-0.8)
+    state = eqx.tree_at(lambda s: s.data.qpos, state, qpos)
+    assert float(env.height(state.data, state.terrain)) == pytest.approx(1.0)
+    state = jax.jit(env.step)(state, jnp.zeros(env.action_size))
+    assert not bool(state.terminated) and int(state.fallen_steps) == 0
+    assert np.isfinite(env.observation(state)).all()
+    assert env._floor_bottom < -0.8
+
+
+def test_global_efficiency_penalty_is_rejected():
+    with pytest.raises(ValueError, match='Unknown curriculum settings'):
+        CurriculumConfig.from_dict(dict(efficiency_penalty=2, levels=[dict(name='hard')]))

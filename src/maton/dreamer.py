@@ -17,7 +17,7 @@ import numpy as np
 
 from maton import sessions
 
-from maton.training import TrainingConfig
+from maton.training import TrainingConfig, environment_step
 from maton.curriculum import CurriculumProgress
 
 UPSTREAM_COMMIT = "e01491fad6434b2245a3b8ca201dd7faedcc458c"
@@ -272,7 +272,7 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
                                          key=np.asarray(sessions.keys(key)).tolist(),
                                          curriculum=curriculum.state()))
 
-    step_fn = jax.jit(env.step)
+    step_fn = jax.jit(lambda state, action: environment_step(env, state, action))
     metrics_file = output / "metrics.jsonl"
     with metrics_file.open("a" if resumed else "w") as metrics:
         while step < training.steps:

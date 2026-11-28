@@ -21,3 +21,13 @@ class TrainingConfig:
     def checkpoint_due(self, previous: int, current: int) -> bool:
         """Save once when a collection batch crosses one or more thresholds."""
         return current // self.checkpoint_every > previous // self.checkpoint_every
+
+
+def environment_step(env, state, action):
+    """Apply the episode's level reward, including during parallel level transitions."""
+    import jax.numpy as jnp
+    shaped = getattr(env, "step_with_efficiency", None)
+    if shaped is None:
+        return env.step(state, action)
+    weights = jnp.asarray([level.efficiency_penalty for level in env.curriculum.levels], dtype=jnp.float32)
+    return shaped(state, action, weights[state.level])

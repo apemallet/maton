@@ -150,3 +150,50 @@ def test_continuation_loads_model_with_fresh_targets_and_optimizer(tmp_path, mod
     loaded = module.load_agent(child).model
     for before, after in zip(jax.tree.leaves(original), jax.tree.leaves(loaded)):
         np.testing.assert_allclose(before, after, rtol=0, atol=1e-25)
+
+
+def test_efficiency_switch_clears_old_rewards_and_survives_resume(tmp_path):
+    import json
+    from maton import sessions
+
+    class EfficientEnv(FinishingEnv):
+        curriculum = CurriculumConfig((Level('hard', 2, TerrainConfig()),
+                                       Level('efficient', 2, TerrainConfig(), efficiency_penalty=2.0)))
+
+        def step_with_efficiency(self, state, action, weight):
+            following = self.step(state, action)
+            return eqx.tree_at(lambda s: s.reward, following, following.reward * 0 + 1 - weight)
+
+    config = sac.SACConfig(num_envs=2, hidden_size=8, batch_size=4, seed_steps=2, log_every=2, update_ratio=0.5)
+    training = TrainingConfig(steps=8, checkpoint_every=2)
+    result = sac.train(EfficientEnv(), config, training, tmp_path, pause=lambda n: n >= 6)
+    assert not result['complete'] and result['curriculum']['efficiency_weight'] == 2
+    assert result['curriculum']['level'] == 1
+    host = json.loads((tmp_path / 'resume/state.json').read_text())
+    assert host['stored'] == 2 and host['refill_until'] == 4
+    saved = sessions.load(tmp_path, Replay.create(4, 2, 2, 1), 'replay')
+    assert saved is not None
+    replay, _ = saved
+    np.testing.assert_array_equal(replay.reward[:int(replay.rows)], -np.ones((2, 2)))
+    logs = [json.loads(line) for line in (tmp_path / 'metrics.jsonl').read_text().splitlines()]
+    assert logs[0]['updates'] == 0  # no update using the old objective at the switch
+    assert logs[0]['episode_return'] == 1 and logs[1]['episode_return'] == -1
+    final = sac.train(EfficientEnv(), config, training, tmp_path)
+    assert final['complete'] and final['curriculum']['efficiency_weight'] == 2
+
+
+def test_reward_uses_each_parallel_episode_level():
+    from maton.training import environment_step
+
+    class EfficientEnv(ToyEnv):
+        curriculum = CurriculumConfig((Level('hard', 2, TerrainConfig()),
+                                       Level('efficient', 2, TerrainConfig(), efficiency_penalty=2.0)))
+
+        def step_with_efficiency(self, state, action, weight):
+            following = self.step(state, action)
+            return eqx.tree_at(lambda s: s.reward, following, jnp.float32(1) - weight)
+
+    env = EfficientEnv()
+    states = jax.vmap(env.reset)(jax.random.split(jax.random.key(0), 2), jnp.array([0, 1]))
+    following = jax.jit(jax.vmap(lambda state, action: environment_step(env, state, action)))(states, jnp.zeros((2, 1)))
+    np.testing.assert_array_equal(following.reward, [1, -1])

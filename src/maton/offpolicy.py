@@ -21,7 +21,7 @@ import numpy as np
 
 from maton import sessions
 from maton.curriculum import CurriculumProgress
-from maton.training import TrainingConfig
+from maton.training import TrainingConfig, environment_step
 
 
 @dataclass(frozen=True)
@@ -162,7 +162,8 @@ def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, train
     seeding = seed_steps(config, episode_length, training.steps)
     curriculum = CurriculumProgress(env.curriculum)
     reset = jax.vmap(env.reset, in_axes=(0, None))
-    step = jax.vmap(env.step)
+    step = jax.vmap(lambda state, action: environment_step(env, state, action),
+                    in_axes=(0, 0))
     observe = jax.vmap(env.observation)
     key = jax.random.key(seed)
     key, reset_key, init_key = jax.random.split(key, 3)
@@ -252,12 +253,23 @@ def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, train
             host["transitions"], host["stored"] = transitions, host["stored"] + 1
             reward, done, success, level = jax.device_get(info)
             episode_return += reward
+            prior_efficiency = curriculum.efficiency_weight
             for index in np.flatnonzero(done):
                 host["episodes"] += 1
                 window["returns"].append(float(episode_return[index]))
                 window["successes"] += int(success[index])
                 curriculum.record(bool(success[index]), int(level[index]))
                 episode_return[index] = 0.0
+            if curriculum.efficiency_weight != prior_efficiency:
+                # Begin the new reward level together; old episodes must not refill new replay.
+                key, reset_key = jax.random.split(key)
+                states = jax.jit(reset)(jax.random.split(reset_key, envs), curriculum.level)
+                observation = jax.jit(observe)(states)
+                carry, first = learner.init_carry(envs), jnp.ones(envs, bool)
+                episode_return[:] = 0.0
+                replay = Replay.create(rows, envs, observation.shape[-1], env.action_size)
+                host["stored"], host["refill_until"] = 0, transitions + seeding
+                host["debt"] = 0.0
             ready = transitions >= max(seeding, host["refill_until"]) and host["stored"] >= learner.horizon
             if ready:
                 if not host["pretrained"]:  # One burst over the seed data, then the steady ratio.

@@ -38,7 +38,7 @@ def staged_directory(output: Path) -> Iterator[Path]:
 def provenance(job: Job) -> dict:
     revision = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True)
     dirty = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=normal'], capture_output=True, text=True)
-    return dict(job=job.path.stem, training_fingerprint=fingerprint(job.training_spec()),
+    return dict(job=job.name, training_fingerprint=fingerprint(job.training_spec()),
                 training=job.training_spec(), source_revision=revision.stdout.strip() or None,
                 source_dirty=bool(dirty.stdout.strip()),
                 source_fingerprint=fingerprint({str(p): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -48,7 +48,7 @@ def provenance(job: Job) -> dict:
 
 def progress_directory(job: Job) -> Path:
     """Resumable training for a job; shared between machines through Git LFS."""
-    return Path('data/jobs') / job.path.stem / 'progress'
+    return Path('data/jobs') / job.name / 'progress'
 
 
 def read_progress(job: Job) -> dict[str, Any] | None:
@@ -62,7 +62,7 @@ def run_session(job: Job, hours: float | None = None, steps: int | None = None) 
     from maton.cli import main
     progress = progress_directory(job)
     signature = fingerprint(job.training_spec())
-    log: dict[str, Any] = read_progress(job) or dict(job=job.path.stem, algorithm=job.algorithm, training_fingerprint=signature,
+    log: dict[str, Any] = read_progress(job) or dict(job=job.name, algorithm=job.algorithm, training_fingerprint=signature,
                                      total=job.training_spec()['training'].get('steps', 256), steps=0,
                                      complete=False, hours=0.0, sessions=[])
     if log['training_fingerprint'] != signature:
@@ -110,7 +110,7 @@ def build_train(job: Job, output: Path) -> None:
     """Finish the job's progress (resuming any earlier sessions), then publish it."""
     log = run_session(job)
     if not log['complete']:
-        raise RuntimeError(f'{job.path.stem}: training paused at {log["steps"]}/{log["total"]}; rerun to resume')
+        raise RuntimeError(f'{job.name}: training paused at {log["steps"]}/{log["total"]}; rerun to resume')
     with staged_directory(output) as stage:
         shutil.copytree(progress_directory(job), stage, ignore=shutil.ignore_patterns('resume'))
         (stage / 'provenance.json').write_text(json.dumps(provenance(job) | dict(sessions=log['sessions']),
@@ -121,14 +121,14 @@ def status(jobs: list[Job]) -> list[dict]:
     rows = []
     for job in jobs:
         log = read_progress(job)
-        published = (Path('data/jobs') / job.path.stem / 'train').exists()
+        published = (Path('data/jobs') / job.name / 'train').exists()
         total = job.training_spec()['training'].get('steps', 256)
         steps = log['steps'] if log else 0
         state = ('published' if published else 'complete' if log and log['complete']
                  else 'paused' if steps else 'not started')
         latest = (log or {}).get('latest', {})
         reward = latest.get('episode_return', latest.get('episode_return_mean'))
-        rows.append(dict(job=job.path.stem, algorithm=job.algorithm, state=state, steps=steps, total=total,
+        rows.append(dict(job=job.name, algorithm=job.algorithm, state=state, steps=steps, total=total,
                          percent=100 * steps / total, hours=log['hours'] if log else 0.0,
                          sessions=len(log['sessions']) if log else 0,
                          machines=sorted({s['machine'] for s in log['sessions']}) if log else [],
@@ -221,7 +221,7 @@ def main() -> None:
         log = run_session(Job.load(args.config), args.hours, args.steps)
         print(summary_line(status([Job.load(args.config)])[0]) + (' (complete)' if log['complete'] else ''))
     elif args.stage == 'status':
-        paths = [Path(f'configs/jobs/{args.job}.toml')] if args.job else sorted(Path('configs/jobs').glob('*.toml'))
+        paths = [Path(f'configs/jobs/{args.job}.toml')] if args.job else sorted(Path('configs/jobs').rglob('*.toml'))
         rows = status([Job.load(path) for path in paths])
         print(summary_line(rows[0]) if args.oneline else format_status(rows))
     elif args.stage == 'share':

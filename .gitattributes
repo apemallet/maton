@@ -2,7 +2,7 @@
 * text=auto eol=lf
 
 # Resumable training progress is shared through Git LFS (see docs/workflow.md).
-data/jobs/*/progress/**/*.eqx filter=lfs diff=lfs merge=lfs -text
-data/jobs/*/progress/**/*.pkl filter=lfs diff=lfs merge=lfs -text
-data/jobs/*/eval/**/*.npz filter=lfs diff=lfs merge=lfs -text
-data/jobs/*/render/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+data/jobs/**/progress/**/*.eqx filter=lfs diff=lfs merge=lfs -text
+data/jobs/**/progress/**/*.pkl filter=lfs diff=lfs merge=lfs -text
+data/jobs/**/eval/**/*.npz filter=lfs diff=lfs merge=lfs -text
+data/jobs/**/render/**/*.mp4 filter=lfs diff=lfs merge=lfs -text

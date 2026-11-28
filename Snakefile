@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from maton.jobs import Job, NAME, fingerprint
+from maton.jobs import Job, NAME, JOB_NAME, fingerprint
 from maton.talk import media
 
 
 wildcard_constraints:
-    job=NAME,
+    job=JOB_NAME,
     evaluation=NAME,
     walker=NAME,
     pose="zero|neutral",

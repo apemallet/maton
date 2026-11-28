@@ -10,6 +10,9 @@
   next observation, terminated, and done. Windows of `horizon` consecutive transitions
   never cross the write pointer; `mask` zeroes steps after an episode ends.
 - Collection (acting, stepping, storing, resetting) and each update burst are single jitted calls.
+- Each episode uses its level’s efficiency penalty. Promotion to a different penalty
+  restarts all environments and clears replay, then refills under the new reward;
+  the learned model and optimizer continue.
 - Curriculum promotions apply at the next reset; the level is a traced value, so no recompilation.
 - Outputs: `metrics.jsonl` every `log_every` transitions (returns, successes, losses,
   throughput, curriculum), `summary.json`, final and periodic model checkpoints.

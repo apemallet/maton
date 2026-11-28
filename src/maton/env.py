@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import math
 from xml.etree import ElementTree as ET
 
+import einx
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -33,9 +34,12 @@ class EnvConfig:
     friction: float = 0.9
     angle_harmonics: int = 2
     fall_timeout: float = 1.0  # seconds continuously fallen before the episode fails
+    terrain_relative_height: bool = False  # allow recovery while standing inside shallow pits
     sink_depth: float = 0.5  # torso this far below the original floor: trapped, episode fails
 
     def __post_init__(self):
+        if type(self.terrain_relative_height) is not bool:
+            raise ValueError("terrain_relative_height must be a boolean")
         if not (self.fall_timeout > 0 and self.sink_depth > 0):
             raise ValueError("fall_timeout and sink_depth must be positive")
         if self.timestep <= 0 or self.frame_skip < 1 or self.episode_length < 1:
@@ -102,8 +106,9 @@ class WalkerEnv:
         self.walker = walker or default_walker()
         self.curriculum = curriculum or CurriculumConfig((Level("course", 1, terrain),))
         self.terrain_config = terrain = self.curriculum.levels[0].terrain
-        self._floor_bottom = -max(1.0, max(x.terrain.gap_height for x in self.curriculum.levels) + 0.5)
+        self._floor_bottom = -max(1.0, max(max(x.terrain.gap_height, x.terrain.central_gap_depth) for x in self.curriculum.levels) + 0.5)
         self.model = mujoco.MjModel.from_xml_string(_xml(config, terrain, self.walker))  # pyright: ignore[reportAttributeAccessIssue]
+        self.weight = float(self.model.body_mass.sum()) * 9.81
         self.action_size = self.model.nu
         self.observation_size = 4 * (self.model.nq - 2) * config.angle_harmonics + 2 + self.model.nsensordata + config.lidar_count
         joint_ids = self.model.actuator_trnid[:, 0]
@@ -148,36 +153,60 @@ class WalkerEnv:
         torque = self._kp * (target - data.qpos[self._motor_qpos]) - self._kd * data.qvel[self._motor_qvel]
         return jnp.clip(torque / self._torque_limit, -1.0, 1.0)
 
-    def posture_score(self, data: mjx.Data) -> Array:
-        height = jnp.clip((self.walker.spawn_height + data.qpos[1] - 0.4 * self.walker.spawn_height)
+    def height(self, data: mjx.Data, terrain: Array | None = None) -> Array:
+        """Torso height above the configured reference floor."""
+        floor = 0.0
+        if self.config.terrain_relative_height and terrain is not None:
+            rect = rectangles(terrain, self.terrain_config)
+            inside = (data.qpos[0] >= rect[:, 0]) & (data.qpos[0] <= rect[:, 1])
+            floor = jnp.max(jnp.where(inside, rect[:, 2], -jnp.inf))
+            floor = jnp.where(jnp.isfinite(floor), floor, 0.0)
+        return self.walker.spawn_height + data.qpos[1] - floor
+
+    def posture_score(self, data: mjx.Data, terrain: Array | None = None) -> Array:
+        height = jnp.clip((self.height(data, terrain) - 0.4 * self.walker.spawn_height)
                           / (0.4 * self.walker.spawn_height), 0.0, 1.0)
         upright = jnp.clip(jnp.cos(data.qpos[2]), 0.0, 1.0)
         return height * upright
 
-    def potential(self, data: mjx.Data) -> Array:
+    def potential(self, data: mjx.Data, terrain: Array | None = None) -> Array:
         """Progress field, optionally weighted by recoverable upright posture."""
         value = self.config.progress_scale * jnp.minimum(data.qpos[0], self.terrain_config.length)
         if self.config.progress_mode == "upright":
-            value *= self.posture_score(data)
+            value *= self.posture_score(data, terrain)
         return value
 
     def step(self, state: State, action: Array) -> State:
+        return self.transition(state, action)[0]
+
+    def step_with_efficiency(self, state: State, action: Array, efficiency_weight: Array) -> State:
+        return self.transition(state, action, efficiency_weight)[0]
+
+    def transition(self, state: State, action: Array, efficiency_weight: Array | float = 0.0) -> tuple[State, Array]:
+        """Step physics and integrate absolute actuator work (J), including braking work."""
         action = jnp.clip(jnp.nan_to_num(action), -1.0, 1.0)
         model = self._model(state.terrain)
-        def physics_step(_, data):
+        def physics_step(_, carry):
+            data, work = carry
             ctrl = self.motor_control(data, action)
-            return mjx.step(model, data.replace(ctrl=ctrl))
-        data = jax.lax.fori_loop(0, self.config.frame_skip, physics_step, state.data)
+            following = mjx.step(model, data.replace(ctrl=ctrl))
+            velocity = (data.qvel[self._motor_qvel] + following.qvel[self._motor_qvel]) / 2
+            power = jnp.abs(following.qfrc_actuator[self._motor_qvel] * velocity)
+            work += einx.sum("motor ->", power) * self.config.timestep  # pyright: ignore[reportPrivateImportUsage]
+            return following, work
+        data, work = jax.lax.fori_loop(0, self.config.frame_skip, physics_step, (state.data, jnp.float32(0)))
+        work = jnp.where(jnp.isfinite(work), work, 0.0)
         finite = jnp.all(jnp.isfinite(data.qpos)) & jnp.all(jnp.isfinite(data.qvel))
         # The progress field saturates at the goal: running off the course earns no extra reward.
-        reward = self.potential(data) - self.potential(state.data)
+        reward = self.potential(data, state.terrain) - self.potential(state.data, state.terrain)
         reward -= self.config.control_cost * jnp.mean(data.ctrl ** 2)
         if self.config.upright_reward:
-            reward += self.config.upright_reward * self.config.timestep * self.config.frame_skip * self.posture_score(data)
+            reward += self.config.upright_reward * self.config.timestep * self.config.frame_skip * self.posture_score(data, state.terrain)
+        reward -= efficiency_weight * work / self.weight
         reward = jnp.where(finite, reward, -1.0)
         # Preserve a finite terminal observation so a failed simulation cannot poison replay.
         data = jax.lax.cond(finite, lambda: data, lambda: state.data)
-        height = data.qpos[1] + self.walker.spawn_height
+        height = self.height(data, state.terrain)
         fallen = (height < 0.5 * self.walker.spawn_height) | (jnp.cos(data.qpos[2]) < jnp.cos(1.4))
         fallen_steps = jnp.where(fallen, state.fallen_steps + 1, 0)
         # Hopeless states end the episode: fallen for too long, or sunk into a pit.
@@ -191,7 +220,7 @@ class WalkerEnv:
         steps = state.steps + 1
         return State(data, state.terrain, steps, reward, terminated,
                      (steps >= self.config.episode_length) & ~terminated, action,
-                     state.level, success, fallen_steps)
+                     state.level, success, fallen_steps), work
 
     def lidar(self, state: State) -> Array:
         """Exact planar ray intersections with the same boxes used by physics."""

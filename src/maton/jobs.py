@@ -13,6 +13,8 @@ from maton.algorithms import algorithm as lookup
 
 
 NAME = r"[a-z0-9]+(?:-[a-z0-9]+)*"
+JOB_SEGMENT = r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*"
+JOB_NAME = rf"{JOB_SEGMENT}(?:/{JOB_SEGMENT})*"
 
 
 def fingerprint(value: Any) -> str:
@@ -60,10 +62,14 @@ def merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def job_root(path: Path) -> Path:
+    return next((parent for parent in path.parents if parent.name == 'jobs'), path.parent)
+
+
 def job_reference(path: Path, name: Any) -> Path:
-    if not isinstance(name, str) or not re.fullmatch(NAME, name):
-        raise ValueError('Job references must be lowercase kebab-case job names')
-    return path.parent / f'{name}.toml'
+    if not isinstance(name, str) or not re.fullmatch(JOB_NAME, name):
+        raise ValueError('Job references must use alphanumeric hyphen-separated names')
+    return job_root(path) / f'{name}.toml'
 
 
 def inherited(path: Path, stack: tuple[Path, ...]) -> tuple[dict[str, Any], tuple[Path, ...]]:
@@ -79,6 +85,11 @@ def inherited(path: Path, stack: tuple[Path, ...]) -> tuple[dict[str, Any], tupl
         for name in ('walker', 'curriculum'):
             if isinstance(base.get(name), str):
                 base[name] = str((parent_path.parent / base[name]).resolve())
+    inherit_evaluations = values.pop('inherit_evaluations', True)
+    if type(inherit_evaluations) is not bool:
+        raise ValueError('inherit_evaluations must be a boolean')
+    if not inherit_evaluations:
+        base.pop('evaluations', None)
     return merge(base, values), (*inputs, path)
 
 
@@ -92,11 +103,15 @@ class Job:
     source: "Job | None" = None
     source_checkpoint: str = "final"
 
+    @property
+    def name(self) -> str:
+        return self.path.relative_to(job_root(self.path)).with_suffix('').as_posix()
+
     @classmethod
     def load(cls, path: str | Path, _stack: tuple[Path, ...] = ()) -> 'Job':
         path = Path(path)
-        if not re.fullmatch(NAME, path.stem):
-            raise ValueError('Job names must use lowercase kebab-case')
+        if not re.fullmatch(JOB_NAME, path.relative_to(job_root(path)).with_suffix('').as_posix()):
+            raise ValueError('Job names must use alphanumeric hyphen-separated segments')
         values, inputs = inherited(path, _stack)
         continuation = values.pop("continue_from", None)
         source, checkpoint = None, "final"
@@ -139,12 +154,12 @@ class Job:
         for name in ('walker', 'curriculum'):
             values[name] = read_toml(self.reference(name))
         if self.source is not None:
-            values['continue_from'] = dict(job=self.source.path.stem, checkpoint=self.source_checkpoint,
+            values['continue_from'] = dict(job=self.source.name, checkpoint=self.source_checkpoint,
                                            training=self.source.training_spec())
         return values
 
     def source_train(self) -> Path | None:
-        return None if self.source is None else Path('data/jobs') / self.source.path.stem / 'train'
+        return None if self.source is None else Path('data/jobs') / self.source.name / 'train'
 
     def initial_checkpoint(self) -> Path | None:
         train = self.source_train()

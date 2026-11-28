@@ -175,3 +175,22 @@ def test_observation_is_fourier_encoded_and_progress_mode_independent_and_step_r
 def test_invalid_progress_mode():
     with pytest.raises(ValueError):
         EnvConfig(progress_mode='invalid')
+
+
+def test_work_integrates_actual_torque_and_velocity_and_shapes_only_reward(env, monkeypatch):
+    from mujoco import mjx
+    state = jax.jit(env.reset)(jax.random.key(0))
+    state = eqx.tree_at(lambda s: s.data.qvel, state, state.data.qvel.at[3:].set(2))
+
+    def physics(model, data):
+        return data.replace(qfrc_actuator=data.qfrc_actuator.at[3:].set(3))
+
+    monkeypatch.setattr(mjx, 'step', physics)
+    transition = jax.jit(env.transition)
+    base, work = transition(state, jnp.zeros(4), 0.0)
+    penalized, second_work = transition(state, jnp.zeros(4), 2.0)
+    expected = 4 * 3 * 2 * env.config.timestep * env.config.frame_skip
+    assert float(work) == pytest.approx(expected)
+    assert float(second_work) == pytest.approx(expected)
+    assert float(base.reward - penalized.reward) == pytest.approx(2 * expected / env.weight)
+    np.testing.assert_array_equal(base.data.qpos, penalized.data.qpos)

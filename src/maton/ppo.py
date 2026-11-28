@@ -16,7 +16,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from maton.training import TrainingConfig
+from maton.training import TrainingConfig, environment_step
 from maton import sessions
 from maton.curriculum import CurriculumProgress
 
@@ -190,7 +190,8 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
     curriculum = CurriculumProgress(env.curriculum)
     reset_one = jax.jit(env.reset)
     reset = jax.jit(jax.vmap(env.reset, in_axes=(0, None)))
-    step = jax.jit(jax.vmap(env.step))
+    step = jax.jit(jax.vmap(lambda state, action: environment_step(env, state, action),
+                                 in_axes=(0, 0)))
     observe = jax.jit(jax.vmap(env.observation))
     states = reset(jax.random.split(reset_key, config.num_envs), curriculum.level)
     observations = observe(states)
@@ -234,7 +235,7 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
         writer = csv.DictWriter(stream, fieldnames=["update", "steps", "reward_mean", "episodes",
                                                     "episode_return_mean", "loss", "actor_loss",
                                                     "value_loss", "entropy", "approx_kl", "grad_norm",
-                                                    "curriculum_level", "curriculum_successes", "curriculum_complete"])
+                                                    "curriculum_level", "curriculum_successes", "curriculum_complete", "efficiency_weight"])
         if not restored:
             writer.writeheader()
         total_updates = (training.steps + config.num_envs * config.rollout_steps - 1) // (config.num_envs * config.rollout_steps)
@@ -289,7 +290,7 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
                               map(float, metrics), strict=True))
             record.update(update=iteration, steps=transitions, reward_mean=float(jnp.mean(rewards)),
                           curriculum_level=curriculum.level, curriculum_successes=curriculum.successes,
-                          curriculum_complete=curriculum.complete,
+                          curriculum_complete=curriculum.complete, efficiency_weight=curriculum.efficiency_weight,
                           episodes=len(completed_returns),
                           episode_return_mean=float(np.mean(completed_returns)) if completed_returns else 0.0)
             writer.writerow(record)

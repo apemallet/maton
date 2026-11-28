@@ -28,10 +28,16 @@ def test_record_exact_course_and_render_without_policy(tmp_path):
     model = mujoco.MjModel.from_xml_path(str(episode / "model.xml"))
     assert np.isclose(model.geom_pos[2, 2] + model.geom_size[2, 2], saved["terrain"][0, 0])
     metadata = json.loads((episode / "episode.json").read_text())
+    assert metadata['work_joules'] >= 0
+    assert 'work_joules' in saved
+    assert saved['work_joules'].sum() == pytest.approx(metadata['work_joules'])
+    assert metadata['cost_of_transport'] is None  # failures never count as efficient crossings
     assert metadata["truncated"]
     assert metadata["lidar_count"] == 5 and metadata["lidar_range"] == 4
     summary = summarize_episodes([episode], tmp_path / "summary.json")
     assert summary["episodes"] == 1
+    assert summary['mean_successful_cost_of_transport'] is None
+    assert summary['mean_successful_seconds'] is None
     assert summary["successes"] == 0
     assert summary["mean_upright_fraction"] == 1.0
     assert json.loads((tmp_path / "summary.json").read_text())["results"][0]["seed"] == 9
@@ -105,3 +111,44 @@ def test_eye_ray_hits_are_brighter_and_marked_but_misses_are_not():
     assert len(rays) == 5 and len(markers) == 2 * hits.sum()
     assert min(line.get_alpha() for line, hit in zip(rays, hits) if hit) > max(
         line.get_alpha() for line, hit in zip(rays, hits) if not hit)
+
+
+def test_efficiency_summary_compares_only_successful_crossings(tmp_path):
+    episodes = []
+    for index, (success, cost, energy, seconds) in enumerate([(True, 2, 200, 10), (True, 4, 400, 20), (False, None, 0, 1)]):
+        path = tmp_path / str(index)
+        path.mkdir()
+        (path / 'episode.json').write_text(json.dumps(dict(success=success, cost_of_transport=cost,
+                                                           work_joules=energy, seconds=seconds,
+                                                           distance=8 if success else 0,
+                                                           reward=1, upright_fraction=1)))
+        episodes.append(path)
+    summary = summarize_episodes(episodes, tmp_path / 'summary.json')
+    assert summary['successes'] == 2
+    assert summary['mean_successful_cost_of_transport'] == 3
+    assert summary['mean_successful_seconds'] == 15
+    assert summary['mean_work_joules'] == 200
+
+
+def test_evaluation_uses_selected_level_efficiency_reward(tmp_path, monkeypatch):
+    from dataclasses import replace
+    import jax.numpy as jnp
+    from maton.curriculum import CurriculumConfig, Level
+    terrain = TerrainConfig(slots=1, block_frequency=0, gap_frequency=0)
+    curriculum = CurriculumConfig((Level('crossing', 4, terrain),
+                                   Level('efficient', 4, terrain, efficiency_penalty=2)))
+    env = WalkerEnv(EnvConfig(reset_noise=0, frame_skip=1), curriculum=curriculum)
+
+    def transition(state, action, weight):
+        data = state.data.replace(qpos=state.data.qpos.at[0].set(terrain.length))
+        return replace(state, data=data, success=jnp.array(True), terminated=jnp.array(True),
+                       reward=jnp.float32(100) - weight * 10 / env.weight), jnp.float32(10)
+
+    monkeypatch.setattr(env, 'transition', transition)
+    base = record(env, lambda _: np.zeros(4), tmp_path / 'crossing', 0, level=0)
+    efficient = record(env, lambda _: np.zeros(4), tmp_path / 'efficient', 0, level=1)
+    first = json.loads((base / 'episode.json').read_text())
+    second = json.loads((efficient / 'episode.json').read_text())
+    assert first['reward'] - second['reward'] == pytest.approx(20 / env.weight, abs=1e-5)
+    assert second['level'] == 1 and second['success']
+    assert first['cost_of_transport'] == second['cost_of_transport']

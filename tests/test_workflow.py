@@ -149,3 +149,14 @@ def test_inheritance_alone_does_not_train_parent(workflow):
     planned = run('data/jobs/variant/train', '-n')
     assert 'wildcards: job=variant' in planned
     assert 'wildcards: job=smoke-ppo' not in planned
+
+
+def test_advanced_job_and_profile_include_parent_training(workflow):
+    _, run = workflow
+    planned = run('--config', 'job=advanced/biped-tdmpc2-NML-s0',
+                  '--profile', 'profiles/advanced', '-n')
+    assert 'wildcards: job=biped-tdmpc2-v2-s0' in planned
+    assert 'wildcards: job=advanced/biped-tdmpc2-NML-s0' in planned
+    assert 'mem_mb=16384' in planned and 'runtime=4320' in planned
+    assert 'evaluation=level-6' not in planned
+    assert 'evaluation=no-mans-land' in planned

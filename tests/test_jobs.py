@@ -20,7 +20,7 @@ def copy_job(tmp_path):
 
 
 def test_all_jobs_resolve_with_only_their_selected_trainer():
-    for path in Path('configs/jobs').glob('*.toml'):
+    for path in Path('configs/jobs').rglob('*.toml'):
         job = Job.load(path)
         assert job.config().resolved()['training']['steps'] > 0
         assert (set(ALGORITHMS) - {job.algorithm}).isdisjoint(job.settings)
@@ -169,3 +169,30 @@ def test_continuation_paths_and_identity(tmp_path):
     path.write_text(path.read_text().replace('extends = "test-job"', 'extends = "test-job"\nalgorithm = "sac"'))
     with pytest.raises(ValueError, match='same algorithm'):
         Job.load(path)
+
+
+def test_advanced_job_resolves_root_references_and_has_its_own_evaluation():
+    job = Job.load('configs/jobs/advanced/biped-tdmpc2-NML-s0.toml')
+    assert job.name == 'advanced/biped-tdmpc2-NML-s0'
+    assert job.source is not None and job.source.name == 'biped-tdmpc2-v2-s0'
+    assert job.source_train() == Path('data/jobs/biped-tdmpc2-v2-s0/train')
+    assert set(job.evaluations) == {'no-mans-land'}
+    assert job.evaluations['no-mans-land'].level == 2
+    assert job.config().resolved()['training']['steps'] == 32 * job.source.config().resolved()['training']['steps']
+    assert job.config().environment().observation_size == job.source.config().environment().observation_size
+
+
+def test_nested_source_artifacts_do_not_collide_with_root_job(tmp_path):
+    from maton.workflow import progress_directory
+    root = tmp_path / 'jobs'
+    root.mkdir()
+    base = copy_job(root)
+    folder = root / 'advanced'
+    folder.mkdir()
+    (folder / 'test-job.toml').write_text('extends = "test-job"\nseed = 2\n')
+    leaf = folder / 'child.toml'
+    leaf.write_text('extends = "advanced/test-job"\ncontinue_from = {job = "advanced/test-job"}\n')
+    job = Job.load(leaf)
+    assert job.source_train() == Path('data/jobs/advanced/test-job/train')
+    assert progress_directory(job) == Path('data/jobs/advanced/child/progress')
+    assert progress_directory(Job.load(base)) == Path('data/jobs/test-job/progress')

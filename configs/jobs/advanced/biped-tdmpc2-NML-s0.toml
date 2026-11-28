@@ -1,0 +1,23 @@
+extends = "biped-tdmpc2-v2-s0"
+continue_from = { job = "biped-tdmpc2-v2-s0", checkpoint = "final" }
+curriculum = "../../curricula/no-mans-land.toml"
+inherit_evaluations = false
+
+[env]
+episode_length = 1024  # up to 40.96 s for crossing or climbing out
+terrain_relative_height = true
+fall_timeout = 3.0
+control_cost = 0.0  # effort shaping starts only after demonstrated success
+upright_reward = 0.0  # avoid rewarding stationary survival during efficiency training
+
+[training]
+steps = 16_777_216  # 32x the baseline, additional transitions; finish gate does not stop training
+learning_rate = 0.0001
+checkpoint_every = 262_144
+
+[evaluations.no-mans-land]
+checkpoint = "final"
+level = 2
+episodes = 100
+seed = 1000
+render = [0, 1, 2]
