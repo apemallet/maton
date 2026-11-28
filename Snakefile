@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from maton.algorithms import algorithm
 from maton.jobs import Job, NAME, fingerprint
 from maton.talk import media
 
@@ -41,11 +40,6 @@ def render_input(wildcards):
     return root
 
 
-def training_sources(name):
-    modules = ["algorithms", "jobs", "config", "cli", "workflow", "training", "env", "walker", "curriculum", "terrain"]
-    return [f"src/maton/{module}.py" for module in modules] + algorithm(name).sources()
-
-
 def targets(name):
     experiment = Job.load(f"configs/jobs/{name}.toml")
     return [f"data/jobs/{name}/train", f"data/jobs/{name}/plots/training.png"] + [
@@ -67,7 +61,6 @@ rule train:
         config=lambda w: ancient(job_config(w)),
         walker=lambda w: ancient(str(job(w).reference("walker"))),
         curriculum=lambda w: ancient(str(job(w).reference("curriculum"))),
-        code=lambda w: training_sources(job(w).algorithm),
         lock="uv.lock"
     output:
         protected(directory("data/jobs/{job}/train"))
@@ -85,8 +78,7 @@ rule train:
 rule evaluate:
     input:
         train="data/jobs/{job}/train",
-        config=lambda w: ancient(job_config(w)),
-        code=lambda w: training_sources(job(w).algorithm) + ["src/maton/replay.py"]
+        config=lambda w: ancient(job_config(w))
     output:
         directory("data/jobs/{job}/eval/{evaluation}")
     params:
@@ -102,8 +94,7 @@ rule evaluate:
 
 rule render:
     input:
-        episode=render_input,
-        code=["src/maton/workflow.py", "src/maton/replay.py", "src/maton/rendering.py"]
+        episode=render_input
     output:
         ensure("data/jobs/{job}/render/{evaluation}/episode-{episode}.mp4", non_empty=True)
     params:
@@ -118,8 +109,7 @@ rule render:
 
 rule plot:
     input:
-        train="data/jobs/{job}/train",
-        code=["src/maton/plots.py"]
+        train="data/jobs/{job}/train"
     output:
         ensure("data/jobs/{job}/plots/training.png", non_empty=True)
     threads: 1
@@ -132,8 +122,7 @@ rule plot:
 
 rule preview:
     input:
-        walker="configs/walkers/{walker}.toml",
-        code=["src/maton/workflow.py", "src/maton/preview.py", "src/maton/rendering.py", "src/maton/walker.py"]
+        walker="configs/walkers/{walker}.toml"
     output:
         ensure("data/walkers/{walker}/{pose}.png", non_empty=True)
     threads: 1
@@ -150,8 +139,7 @@ rule talk:
         slides="talk/slides.md",
         template="talk/template.html",
         # Every src="data/..." or ](data/...) reference; Snakemake builds them first.
-        media=lambda w: media(Path("talk/slides.md")),
-        code=["src/maton/talk.py"]
+        media=lambda w: media(Path("talk/slides.md"))
     output:
         directory("data/talk")
     threads: 1

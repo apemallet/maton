@@ -1,13 +1,28 @@
-"""Display-independent projections of compiled MuJoCo geometry."""
+"""Display-independent geometry projections and saved-episode videos."""
 
 from itertools import product
-from typing import Any
+import json
+import os
+from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 from scipy.spatial import ConvexHull
 
 
-def draw_model(model: Any, data: Any, axes: Any, plane: tuple[int, int] = (0, 2)) -> None:
+def limb_colors(model: Any) -> np.ndarray:
+    """Stable per-body brightness offsets; preserve torso, terrain, and alpha."""
+    colors = np.array(model.geom_rgba, copy=True)
+    # Walker limbs descend from the root torso; terrain belongs to the world.
+    bodies = [body for body in range(1, model.nbody) if model.body_parentid[body] != 0]
+    for body, brightness in zip(bodies, np.linspace(0.85, 1.15, len(bodies)), strict=True):
+        mask = model.geom_bodyid == body
+        colors[mask, :3] = np.clip(colors[mask, :3] * brightness, 0, 1)
+    return colors
+
+
+def draw_model(model: Any, data: Any, axes: Any, plane: tuple[int, int] = (0, 2),
+               *, colors: np.ndarray | None = None) -> None:
     """Draw sphere, capsule, cylinder, and box silhouettes in a coordinate plane."""
     from matplotlib.patches import Circle, Polygon
     import mujoco
@@ -18,11 +33,18 @@ def draw_model(model: Any, data: Any, axes: Any, plane: tuple[int, int] = (0, 2)
         kind = int(model.geom_type[geom])
         pos = data.geom_xpos[geom][coordinates]
         matrix = data.geom_xmat[geom].reshape(3, 3)
-        size, color = model.geom_size[geom], model.geom_rgba[geom]
+        size = model.geom_size[geom]
+        color = (model.geom_rgba if colors is None else colors)[geom]
         if kind == kinds.mjGEOM_BOX:
             vertices = np.array(list(product((-1, 1), repeat=3))) * size
             points = (vertices @ matrix.T)[:, coordinates] + pos
-            axes.add_patch(Polygon(points[ConvexHull(points).vertices], color=color))
+            silhouette = points[ConvexHull(points).vertices]
+            if model.geom_bodyid[geom] == 0:
+                # Static terrain: a luminous rim over a subdued blue interior.
+                axes.add_patch(Polygon(silhouette, facecolor="#071b24", edgecolor="#39e7ff",
+                                       linewidth=1.25, joinstyle="round"))
+            else:
+                axes.add_patch(Polygon(silhouette, color=color))
         elif kind in (kinds.mjGEOM_CAPSULE, kinds.mjGEOM_CYLINDER):
             direction = matrix[coordinates, 2] * size[1]
             perpendicular = np.array([-direction[1], direction[0]])
@@ -34,3 +56,46 @@ def draw_model(model: Any, data: Any, axes: Any, plane: tuple[int, int] = (0, 2)
                 axes.add_patch(Circle(endpoint, size[0], color=color))
         elif kind == kinds.mjGEOM_SPHERE:
             axes.add_patch(Circle(pos, size[0], color=color))
+
+
+def render_episode(episode: Path, output: Path | None = None) -> Path:
+    """Side-on geometry projection, portable to machines without an OpenGL display."""
+    # imageio's SIGINT preexec hook forces fork(), which is unsafe after JAX
+    # starts worker threads. Without that hook Python can use posix_spawn().
+    os.environ.setdefault("IMAGEIO_FFMPEG_NO_PREVENT_SIGINT", "1")
+    import imageio.v2 as imageio
+    import mujoco
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+    from matplotlib.style import context
+
+    output = output or episode / "episode.mp4"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # MuJoCo's compiled bindings are missing exports in its Python type metadata.
+    model = mujoco.MjModel.from_xml_path(str(episode / "model.xml"))  # pyright: ignore[reportAttributeAccessIssue]
+    data = mujoco.MjData(model)  # pyright: ignore[reportAttributeAccessIssue]
+    colors = limb_colors(model)
+    with np.load(episode / "trajectory.npz") as saved:
+        positions, velocities = saved["qpos"], saved["qvel"]
+        rewards = saved["rewards"]
+    metadata = json.loads((episode / "episode.json").read_text())
+    dt = metadata["dt"]
+    with context("dark_background"), imageio.get_writer(
+        str(output), fps=1 / dt, codec="libx264", macro_block_size=2,
+    ) as writer:
+        figure = Figure(figsize=(9.6, 5.4), dpi=100)
+        canvas = FigureCanvasAgg(figure)
+        axes = figure.add_axes((0.04, 0.08, 0.94, 0.84))
+        for index, (qpos, qvel) in enumerate(zip(positions, velocities, strict=True)):
+            data.qpos[:], data.qvel[:] = qpos, qvel
+            mujoco.mj_forward(model, data)  # pyright: ignore[reportAttributeAccessIssue]
+            axes.clear()
+            center = max(1.5, float(qpos[0]))
+            axes.set(xlim=(center - 3, center + 4), ylim=(-1.4, 2.4),
+                     xlabel="distance (m)", ylabel="height (m)", aspect="equal")
+            draw_model(model, data, axes, colors=colors)
+            score = float(np.sum(rewards[:index]))
+            axes.set_title(f"t={index * dt:.2f}s   x={qpos[0]:.2f}m   return={score:.3f}")
+            canvas.draw()
+            cast(Any, writer).append_data(np.asarray(canvas.buffer_rgba())[..., :3])
+    return output

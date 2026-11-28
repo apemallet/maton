@@ -82,10 +82,17 @@ just job biped-tdmpc2-v2-s0       # resume to the full budget, then publish trai
 - Job/walker/curriculum inputs are `ancient()` **only for timestamp purposes**;
   a semantic training fingerprint in rule parameters tracks their contents.
   Formatting, evaluation edits, and video selection do not retrain models.
-- Source and lockfile changes remain normal dependencies. A scheduled training
-  rerun fails on protected outputs rather than overwriting the model. Use a new
-  job name, or deliberately remove the old protected training directory before
-  requesting a rebuild. Training resumes from `progress/`, never from `train/`.
+- Source files are not workflow inputs. After relevant implementation changes,
+  use `-f` on the artifact to rebuild, e.g.
+  `just build data/jobs/biped-tdmpc2-v2-s0/render/level-6/episode-0000.mp4 -f`.
+  With current dependencies, this rerenders saved trajectories without evaluation.
+  Missing or stale data dependencies still rebuild; inspect with `-n` first.
+- Lockfile changes remain normal dependencies. Training reruns fail on protected
+  outputs. Use a new job name, or deliberately remove the old protected training
+  directory before rebuilding. Training resumes from `progress/`, never `train/`.
+- After rule input definitions change, clear outdated dependency metadata with
+  `uv run snakemake --cleanup-metadata PATH ...` for affected outputs. This keeps
+  artifacts intact; training identity checks still apply.
 - Evaluation and video outputs rebuild normally. Each directory belongs to one
   rule; evaluation and rendering live outside the protected training directory.
 - Builders stage results beside their destination and publish after success.

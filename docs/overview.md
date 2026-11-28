@@ -53,6 +53,9 @@ curriculum level; `--level 6` selects the last level. Each episode contains:
 
 `maton render EVAL/episode-0000` produces `episode.mp4` from a side-on projection
 of the saved MuJoCo geometry. It needs no display, GPU, or policy checkpoint.
+Videos use Matplotlib's `dark_background` style, with stable limb brightness
+offsets (±15%) to help track each segment through motion.
+Terrain has bright cyan borders and a subtle dark blue fill.
 
 Smoke tests validate finite dynamics, optimizer updates, checkpoint reload, and
 video generation. These budgets establish integration, not locomotion performance.

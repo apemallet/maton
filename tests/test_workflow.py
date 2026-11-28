@@ -15,7 +15,7 @@ def workflow(tmp_path):
     shutil.copy('uv.lock', tmp_path)
     shutil.copytree('configs', tmp_path / 'configs')
     shutil.copytree('profiles', tmp_path / 'profiles')
-    # Source dependencies must exist; copy rather than modify the checkout.
+    # Isolate source edits used to exercise the manual rebuild policy.
     shutil.copytree('src', tmp_path / 'src', ignore=shutil.ignore_patterns('__pycache__'))
     binary = tmp_path / 'bin'
     binary.mkdir()
@@ -49,7 +49,8 @@ else:
     environment.pop('PYTHONPATH', None)
 
     def run(*args, success=True):
-        result = subprocess.run([sys.executable, '-m', 'snakemake', '--cores', '1', *args],
+        result = subprocess.run([sys.executable, '-m', 'snakemake', '--cores', '1',
+                                 '--runtime-source-cache-path', str(tmp_path / 'source-cache'), *args],
                                 cwd=tmp_path, env=environment, capture_output=True, text=True)
         output = result.stdout + result.stderr
         if success:
@@ -90,9 +91,35 @@ def test_protected_training_and_preview_target(workflow):
     assert 'protected' in run('data/jobs/smoke-ppo/train', '--forcerun', 'train', success=False).lower()
     source = root / 'src/maton/ppo.py'
     source.write_text(source.read_text() + '\n# changed training implementation\n')
-    # A real run, not -n: Windows ignores read-only directories, so dry runs miss protection.
-    assert 'protected' in run('data/jobs/smoke-ppo/train', success=False).lower()
+    assert 'Nothing to be done' in run('data/jobs/smoke-ppo/train')
     preview = 'data/walkers/quadruped/neutral.png'
     run(preview)
     assert (root / preview).is_file()
     assert 'Nothing to be done' in run(preview, '-n')
+
+
+def test_source_changes_need_explicit_rebuilds(workflow):
+    root, run = workflow
+    run()
+    preview = 'data/walkers/quadruped/neutral.png'
+    run(preview)
+    for source in (root / 'src').rglob('*.py'):
+        source.write_text(source.read_text() + '\n# implementation changed\n')
+    assert 'Nothing to be done' in run('-n')
+    assert 'Nothing to be done' in run(preview, '-n')
+
+    video = 'data/jobs/smoke-ppo/render/level-1/episode-0000.mp4'
+    episode = root / 'data/jobs/smoke-ppo/eval/level-1/summary.json'
+    original = episode.read_bytes(), episode.stat().st_mtime_ns
+    rebuilt = run(video, '-f')
+    assert 'localrule render:' in rebuilt
+    assert 'localrule train:' not in rebuilt and 'localrule evaluate:' not in rebuilt
+    assert (episode.read_bytes(), episode.stat().st_mtime_ns) == original
+    assert 'Nothing to be done' in run('-n')
+
+    # Data dependencies still invalidate the video without a force flag.
+    newer = (root / video).stat().st_mtime + 10
+    os.utime(episode.parent / '.snakemake_timestamp', (newer, newer))
+    planned = run(video, '-n')
+    assert 'rule render:' in planned
+    assert 'rule train:' not in planned and 'rule evaluate:' not in planned

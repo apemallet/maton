@@ -1,10 +1,9 @@
-"""Record physics trajectories; render them without loading a trained network."""
+"""Record physics trajectories and summarize saved evaluations."""
 
 from collections.abc import Callable
 import json
-import os
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import jax
 import numpy as np
@@ -68,43 +67,3 @@ def summarize_episodes(episodes: list[Path], output: Path) -> dict:
                    results=records)
     output.write_text(json.dumps(summary, indent=2) + "\n")
     return summary
-
-
-def render_episode(episode: Path, output: Path | None = None) -> Path:
-    """Side-on geometry projection, portable to machines without an OpenGL display."""
-    # imageio's SIGINT preexec hook forces fork(), which is unsafe after JAX
-    # starts worker threads. Without that hook Python can use posix_spawn().
-    os.environ.setdefault("IMAGEIO_FFMPEG_NO_PREVENT_SIGINT", "1")
-    import imageio.v2 as imageio
-    from matplotlib.backends.backend_agg import FigureCanvasAgg
-    from matplotlib.figure import Figure
-    from maton.rendering import draw_model
-
-    output = output or episode / "episode.mp4"
-    output.parent.mkdir(parents=True, exist_ok=True)
-    # MuJoCo's compiled bindings are missing exports in its Python type metadata.
-    model = mujoco.MjModel.from_xml_path(str(episode / "model.xml"))  # pyright: ignore[reportAttributeAccessIssue]
-    data = mujoco.MjData(model)  # pyright: ignore[reportAttributeAccessIssue]
-    with np.load(episode / "trajectory.npz") as saved:
-        positions, velocities = saved["qpos"], saved["qvel"]
-        rewards = saved["rewards"]
-    metadata = json.loads((episode / "episode.json").read_text())
-    dt = metadata["dt"]
-    figure = Figure(figsize=(9.6, 5.4), dpi=100)
-    canvas = FigureCanvasAgg(figure)
-    axes = figure.add_axes((0.04, 0.08, 0.94, 0.84))
-    with imageio.get_writer(str(output), fps=1 / dt, codec="libx264", macro_block_size=2) as writer:
-        for index, (qpos, qvel) in enumerate(zip(positions, velocities, strict=True)):
-            data.qpos[:], data.qvel[:] = qpos, qvel
-            mujoco.mj_forward(model, data)  # pyright: ignore[reportAttributeAccessIssue]
-            axes.clear()
-            center = max(1.5, float(qpos[0]))
-            axes.set(xlim=(center - 3, center + 4), ylim=(-1.4, 2.4),
-                     xlabel="distance (m)", ylabel="height (m)", aspect="equal")
-            axes.set_facecolor("#eef3f7")
-            draw_model(model, data, axes)
-            score = float(np.sum(rewards[:index]))
-            axes.set_title(f"t={index * dt:.2f}s   x={qpos[0]:.2f}m   return={score:.3f}")
-            canvas.draw()
-            cast(Any, writer).append_data(np.asarray(canvas.buffer_rgba())[..., :3])
-    return output

@@ -4,3 +4,5 @@
 - might be interesting to have a large obstacle curriculum with discrete levels and see if dreamer can skip levels
 - spider walker, pogo walker, "car" walker (triangle legs)
 - add a cliff that requires generalization to overcome; very poor reward gradient
+- let's make it do a jump
+- color each limb slightly different so we can tell if it's actually taking a step

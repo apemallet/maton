@@ -71,5 +71,5 @@ def main(argv: list[str] | None = None) -> None:
         from maton.preview import preview_walker
         print(preview_walker(args.walker, args.output, neutral=args.neutral))
     else:
-        from maton.replay import render_episode
+        from maton.rendering import render_episode
         print(render_episode(args.episode, args.output))

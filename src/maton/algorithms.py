@@ -1,4 +1,4 @@
-"""Trainer registry: names, modules, checkpoints, and sources, without importing JAX.
+"""Trainer registry: names, modules, and checkpoints, without importing JAX.
 
 Each trainer module `maton.<name>` exposes:
 
@@ -30,8 +30,6 @@ class Algorithm:
     name: str
     final: str  # final checkpoint, relative to the training directory
     snapshot: str  # periodic checkpoint; `{step}` is the zero-padded transition count
-    modules: tuple[str, ...] = ()  # shared maton modules this trainer imports
-    assets: tuple[str, ...] = ()  # non-Python training inputs
 
     def load(self) -> ModuleType:
         return importlib.import_module(f'maton.{self.name}')
@@ -39,17 +37,12 @@ class Algorithm:
     def checkpoint(self, train: Path, step: str | None = None) -> Path:
         return train / (self.final if step is None else self.snapshot.format(step=step))
 
-    def sources(self) -> list[str]:
-        return [f'src/maton/{module}.py' for module in (self.name, *self.modules)] + list(self.assets)
-
-
-_OFF_POLICY = ('offpolicy', 'layers')
 
 ALGORITHMS = {algorithm.name: algorithm for algorithm in (
     Algorithm('ppo', 'policy.eqx', 'checkpoints/step-{step}.eqx'),
-    Algorithm('dreamer', 'dreamer.pkl', 'dreamer-{step}.pkl', assets=('src/maton/assets/dreamer_defaults.yaml',)),
-    Algorithm('tdmpc2', 'tdmpc2.eqx', 'checkpoints/step-{step}.eqx', _OFF_POLICY),
-    Algorithm('sac', 'sac.eqx', 'checkpoints/step-{step}.eqx', _OFF_POLICY),
+    Algorithm('dreamer', 'dreamer.pkl', 'dreamer-{step}.pkl'),
+    Algorithm('tdmpc2', 'tdmpc2.eqx', 'checkpoints/step-{step}.eqx'),
+    Algorithm('sac', 'sac.eqx', 'checkpoints/step-{step}.eqx'),
 )}
 
 

@@ -11,7 +11,6 @@ def test_registered_trainers_share_one_interface(name):
     spec = ALGORITHMS[name]
     module = spec.load()
     assert is_dataclass(module.Config) and callable(module.train) and callable(module.load_agent)
-    assert all(Path(source).is_file() for source in spec.sources())
     assert spec.checkpoint(Path('t'), '00000008') != spec.checkpoint(Path('t'))
 
 

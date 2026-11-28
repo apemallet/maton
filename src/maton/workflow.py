@@ -169,7 +169,7 @@ def build_evaluation(job: Job, name: str, train: Path, output: Path) -> None:
 
 
 def build_render(episode: Path, output: Path) -> None:
-    from maton.replay import render_episode
+    from maton.rendering import render_episode
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.render-', dir=output.parent) as temporary:
         stage = Path(temporary) / 'episode.mp4'

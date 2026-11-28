@@ -19,7 +19,7 @@ dependencies from it.
      `training.checkpoint_due`; resume from `output/resume/` (see `sessions.py`); stop when
      `pause(steps)` is true; return a JSON summary with `steps`, `complete`, `curriculum`, `last`.
    - `load_agent(checkpoint) -> Agent`: `reset()`, `__call__(obs) -> action`, `curriculum_level`.
-2. Add one `Algorithm(...)` entry: checkpoint layout, shared modules, and non-Python assets.
+2. Add one `Algorithm(...)` entry with its checkpoint layout.
    These become Snakemake training inputs.
 3. Add `configs/jobs/smoke-<name>.toml`, tests, and a docs page.
 
