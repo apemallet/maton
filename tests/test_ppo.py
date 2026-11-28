@@ -133,3 +133,25 @@ def test_pause_and_resume_matches_uninterrupted_training(tmp_path):
                                   load_policy(tmp_path / "paused").actor.layers[0].weight)
     assert (tmp_path / "paused/metrics.csv").read_text() .count("update") == 1  # one header
     assert len((tmp_path / "paused/metrics.csv").read_text().splitlines()) == 5
+
+
+def test_continuation_copies_weights_resets_budget_and_resumes_child(tmp_path):
+    config = PPOConfig(num_envs=2, rollout_steps=4, epochs=1, minibatch_size=4, hidden_size=8)
+    source = tmp_path / 'source'
+    train(ToyEnv(), config, TrainingConfig(steps=16), source, seed=4)
+    checkpoint = source / 'policy.eqx'
+    original = load_policy(checkpoint)
+    child = tmp_path / 'child'
+    training = TrainingConfig(steps=16, learning_rate=1e-30, checkpoint_every=8)
+    first = train(ToyEnv(), config, training, child, seed=99,
+                  checkpoint=checkpoint, pause=lambda steps: steps >= 8)
+    assert first['steps'] == 8 and not first['complete']
+    for before, after in zip(jax.tree.leaves(original), jax.tree.leaves(load_policy(child))):
+        np.testing.assert_array_equal(before, after)
+    # Resuming uses the child's exact state even if its source checkpoint is unavailable.
+    checkpoint.unlink()
+    final = train(ToyEnv(), config, training, child, seed=99, checkpoint=checkpoint)
+    assert final['steps'] == 16 and final['complete']
+    with pytest.raises((ValueError, RuntimeError), match='shape'):
+        train(ToyEnv(), PPOConfig(num_envs=2, rollout_steps=4, epochs=1, minibatch_size=4, hidden_size=16),
+              training, tmp_path / 'incompatible', checkpoint=source / 'checkpoints/step-00000016.eqx')

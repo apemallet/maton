@@ -123,3 +123,29 @@ def test_source_changes_need_explicit_rebuilds(workflow):
     planned = run(video, '-n')
     assert 'rule render:' in planned
     assert 'rule train:' not in planned and 'rule evaluate:' not in planned
+
+
+def test_inherited_continuation_dag_and_semantic_changes(workflow):
+    root, run = workflow
+    jobs = root / 'configs/jobs'
+    child = jobs / 'harder.toml'
+    child.write_text('extends = "smoke-ppo"\ncontinue_from = {job = "smoke-ppo"}\n[training]\nsteps = 32\n')
+    target = 'data/jobs/harder/train'
+    planned = run(target, '-n')
+    assert 'wildcards: job=smoke-ppo' in planned and 'wildcards: job=harder' in planned
+    built = run(target)
+    assert built.index('wildcards: job=smoke-ppo') < built.index('wildcards: job=harder')
+    assert 'Nothing to be done' in run(target, '-n')
+    base = jobs / 'smoke-ppo.toml'
+    base.write_text(base.read_text().replace('render = [0]', 'render = []'))
+    assert 'Nothing to be done' in run(target, '-n')
+    base.write_text(base.read_text().replace('steps = 16', 'steps = 24'))
+    assert 'new job name' in run(target, '-n', success=False)
+
+
+def test_inheritance_alone_does_not_train_parent(workflow):
+    root, run = workflow
+    (root / 'configs/jobs/variant.toml').write_text('extends = "smoke-ppo"\nseed = 3\n')
+    planned = run('data/jobs/variant/train', '-n')
+    assert 'wildcards: job=variant' in planned
+    assert 'wildcards: job=smoke-ppo' not in planned

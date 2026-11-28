@@ -111,7 +111,7 @@ class Learner(Protocol):
 
     def init_model(self, key: Array) -> Any: ...
 
-    def init(self, key: Array) -> Any: ...
+    def init(self, key: Array, model: Any = None) -> Any: ...
 
     def init_carry(self, envs: int) -> Any: ...
 
@@ -149,7 +149,8 @@ def _save(path: Path, name: str, model, metadata: dict[str, Any]) -> None:
 
 
 def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, training: TrainingConfig,
-          output: str | Path, seed: int = 0, pause: Callable[[int], bool] = sessions.never) -> dict[str, Any]:
+          output: str | Path, seed: int = 0, pause: Callable[[int], bool] = sessions.never,
+          checkpoint: Path | None = None) -> dict[str, Any]:
     """Train to `training.steps`, resuming from `output/resume` when present; `pause(steps)`
     ends the session early with resumable state saved."""
     output = Path(output)
@@ -168,7 +169,11 @@ def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, train
     states = jax.jit(reset)(jax.random.split(reset_key, envs), curriculum.level)
     observation = jax.jit(observe)(states)
     learner = make(config, observation.shape[-1], env.action_size, episode_length, training)
-    state = learner.init(init_key)
+    continuing = checkpoint is not None
+    model = None
+    if checkpoint is not None and not sessions.resuming(output):
+        model = eqx.tree_deserialise_leaves(checkpoint, learner.init_model(init_key))
+    state = learner.init(init_key, model)
     rows = max(learner.horizon, math.ceil(min(config.buffer_size, training.steps) / envs))
     replay = Replay.create(rows, envs, observation.shape[-1], env.action_size)
     carry = learner.init_carry(envs)
@@ -224,7 +229,7 @@ def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, train
                     episode_length=episode_length, config=asdict(config), training=asdict(training),
                     curriculum=curriculum.snapshot())
 
-    def checkpoint(with_replay: bool) -> None:
+    def save_checkpoint(with_replay: bool) -> None:
         host.update(curriculum=curriculum.state(),
                     episode_return=episode_return.tolist(), seconds=prior_seconds + time.perf_counter() - started)
         if with_replay:
@@ -242,7 +247,7 @@ def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, train
             key, collect_key, update_key = jax.random.split(key, 3)
             carry, states, observation, first, replay, info = collect(
                 state.model, carry, states, observation, first, replay, collect_key,
-                jnp.asarray(curriculum.level, jnp.int32), random=transitions < seeding)
+                jnp.asarray(curriculum.level, jnp.int32), random=transitions < seeding and not continuing)
             previous, transitions = transitions, transitions + envs
             host["transitions"], host["stored"] = transitions, host["stored"] + 1
             reward, done, success, level = jax.device_get(info)
@@ -290,9 +295,9 @@ def train(env: Any, name: str, make: MakeLearner, config: OffPolicyConfig, train
                 model = jax.device_get(state.model)
                 _save(output / "checkpoints" / f"step-{transitions:08d}.eqx", name, model, metadata(transitions))
                 _save(output / f"{name}.eqx", name, model, metadata(transitions))
-                checkpoint(with_replay=False)  # crash safety; resuming then refills replay
+                save_checkpoint(with_replay=False)  # crash safety; resuming then refills replay
             if not complete and pause(transitions):
-                checkpoint(with_replay=True)
+                save_checkpoint(with_replay=True)
                 break
     seconds = prior_seconds + time.perf_counter() - started
     summary = dict(algorithm=name, steps=host["transitions"], complete=complete, updates=host["updates"],

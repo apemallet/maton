@@ -131,3 +131,22 @@ def test_resume_without_replay_refills_before_updating(tmp_path):
         path.unlink()
     result = tdmpc2.train(ToyEnv(), config, training, tmp_path)
     assert result["complete"] and result["updates"] == 12 + 6  # no updates while 8 transitions refill (steps 14–18)
+
+
+@pytest.mark.parametrize('module', [sac, tdmpc2])
+def test_continuation_loads_model_with_fresh_targets_and_optimizer(tmp_path, module):
+    if module is sac:
+        config = sac.SACConfig(num_envs=2, batch_size=4, seed_steps=4, hidden_size=8, num_q=2)
+    else:
+        config = tdmpc2.TDMPC2Config(**TINY)
+    source = tmp_path / 'source'
+    module.train(FinishingEnv(), config, TrainingConfig(steps=8), source, seed=3)
+    checkpoint = source / f'{module.__name__.split(".")[-1]}.eqx'
+    original = module.load_agent(checkpoint).model
+    child = tmp_path / 'child'
+    result = module.train(ToyEnv(), config, TrainingConfig(steps=8, learning_rate=1e-30), child,
+                          seed=99, checkpoint=checkpoint)
+    assert result['steps'] == 8 and result['curriculum']['level'] == 0
+    loaded = module.load_agent(child).model
+    for before, after in zip(jax.tree.leaves(original), jax.tree.leaves(loaded)):
+        np.testing.assert_allclose(before, after, rtol=0, atol=1e-25)

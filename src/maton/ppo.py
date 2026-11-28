@@ -178,7 +178,7 @@ def load_agent(path: str | Path) -> PPOAgent:
 
 
 def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | Path, seed: int = 0,
-          pause: Callable[[int], bool] = sessions.never):
+          pause: Callable[[int], bool] = sessions.never, checkpoint: Path | None = None):
     """Train PPO, resuming from `output/resume` when present; `pause(steps)` ends the
     session after an update with resumable state saved."""
     if training.steps % config.num_envs:
@@ -196,6 +196,8 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
     observations = observe(states)
     policy = Policy(observations.shape[-1], env.action_size, config.hidden_size, policy_key,
                     initial_std=config.initial_std)
+    if checkpoint is not None and not sessions.resuming(output):
+        policy = eqx.tree_deserialise_leaves(checkpoint, policy)
     optimizer = optax.chain(optax.clip_by_global_norm(config.max_grad_norm),
                            optax.adam(training.learning_rate, eps=1e-5))
     optimizer_state = optimizer.init(eqx.filter(policy, eqx.is_inexact_array))
@@ -221,7 +223,7 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
     record: dict[str, Any] | None = host["last"]
     prior_seconds, started = host["seconds"], time.perf_counter()
 
-    def checkpoint(iteration: int) -> None:
+    def save_checkpoint(iteration: int) -> None:
         host.update(transitions=transitions, iteration=iteration, episode_returns=episode_returns.tolist(),
                     completed_returns=completed_returns, last=record,
                     seconds=prior_seconds + time.perf_counter() - started,
@@ -296,9 +298,9 @@ def train(env: Any, config: PPOConfig, training: TrainingConfig, output: str | P
             if training.checkpoint_due(previous_transitions, transitions) or transitions == training.steps:
                 _save(policy, output / "checkpoints" / f"step-{transitions:08d}.eqx", transitions, config, training, curriculum)
                 _save(policy, output / "policy.eqx", transitions, config, training, curriculum)
-                checkpoint(iteration)
+                save_checkpoint(iteration)
             if transitions < training.steps and pause(transitions):
-                checkpoint(iteration)
+                save_checkpoint(iteration)
                 break
     summary = {"algorithm": "ppo", "steps": transitions, "complete": transitions >= training.steps,
                "updates": host["iteration"] if transitions < training.steps else total_updates,

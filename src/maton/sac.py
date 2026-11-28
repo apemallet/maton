@@ -81,8 +81,8 @@ class SAC:
                      MLP(critic_key, self.observation_size + self.action_size, hidden, 1, ensemble=c.num_q,
                          hidden_activation="relu", norm=c.critic_norm))
 
-    def init(self, key: Array) -> TrainState:
-        model = self.init_model(key)
+    def init(self, key: Array, model: Model | None = None) -> TrainState:
+        model = self.init_model(key) if model is None else model
         log_alpha = jnp.log(jnp.asarray(self.config.initial_alpha))
         return TrainState(model, jax.tree.map(jnp.copy, model.critics),
                           self.optimizer.init(eqx.filter(model.actor, eqx.is_array)),
@@ -152,8 +152,8 @@ class SAC:
 
 
 def train(env: Any, config: SACConfig, training: TrainingConfig, output: str | Path, seed: int = 0,
-          pause=sessions.never):
-    return offpolicy.train(env, "sac", SAC, config, training, output, seed, pause)
+          pause=sessions.never, checkpoint: Path | None = None):
+    return offpolicy.train(env, "sac", SAC, config, training, output, seed, pause, checkpoint)
 
 
 def load_agent(path: str | Path) -> offpolicy.OffPolicyAgent:

@@ -1,5 +1,6 @@
 """Named experiments and stage-specific configuration, without importing JAX."""
 
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -51,21 +52,63 @@ class Evaluation:
         return {k: v for k, v in asdict(self).items() if k != 'render'}
 
 
+def merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """Tables merge recursively; scalar values and arrays replace their parents."""
+    result = deepcopy(base)
+    for key, value in overrides.items():
+        result[key] = merge(result[key], value) if isinstance(result.get(key), dict) and isinstance(value, dict) else deepcopy(value)
+    return result
+
+
+def job_reference(path: Path, name: Any) -> Path:
+    if not isinstance(name, str) or not re.fullmatch(NAME, name):
+        raise ValueError('Job references must be lowercase kebab-case job names')
+    return path.parent / f'{name}.toml'
+
+
+def inherited(path: Path, stack: tuple[Path, ...]) -> tuple[dict[str, Any], tuple[Path, ...]]:
+    if path.resolve() in stack:
+        raise ValueError(f'Job dependency cycle: {" -> ".join(p.stem for p in (*stack, path))}')
+    values = read_toml(path)
+    parent = values.pop('extends', None)
+    base, inputs = {}, ()
+    if parent is not None:
+        parent_path = job_reference(path, parent)
+        base, inputs = inherited(parent_path, (*stack, path.resolve()))
+        # Rebase inherited references; child overrides stay relative to the child.
+        for name in ('walker', 'curriculum'):
+            if isinstance(base.get(name), str):
+                base[name] = str((parent_path.parent / base[name]).resolve())
+    return merge(base, values), (*inputs, path)
+
+
 @dataclass(frozen=True)
 class Job:
     path: Path
     algorithm: str
     settings: dict[str, Any]
     evaluations: dict[str, Evaluation]
+    config_paths: tuple[Path, ...] = ()
+    source: "Job | None" = None
+    source_checkpoint: str = "final"
 
     @classmethod
-    def load(cls, path: str | Path) -> 'Job':
+    def load(cls, path: str | Path, _stack: tuple[Path, ...] = ()) -> 'Job':
         path = Path(path)
         if not re.fullmatch(NAME, path.stem):
             raise ValueError('Job names must use lowercase kebab-case')
-        values = read_toml(path)
+        values, inputs = inherited(path, _stack)
+        continuation = values.pop("continue_from", None)
+        source, checkpoint = None, "final"
+        if continuation is not None:
+            if not isinstance(continuation, dict) or "job" not in continuation or continuation.keys() - {"job", "checkpoint"}:
+                raise ValueError("continue_from must contain job and optional checkpoint")
+            checkpoint = Evaluation(checkpoint=continuation.get("checkpoint", "final")).checkpoint
+            source = cls.load(job_reference(path, continuation["job"]), (*_stack, path.resolve()))
         algorithm = values.pop('algorithm', None)
         lookup(algorithm)
+        if source is not None and source.algorithm != algorithm:
+            raise ValueError("continue_from must use the same algorithm")
         protocols = values.pop('evaluations', {})
         if not isinstance(protocols, dict):
             raise ValueError('evaluations must be a table of named protocols')
@@ -82,7 +125,7 @@ class Job:
         for reference in ('walker', 'curriculum'):
             if not isinstance(values.get(reference), str):
                 raise ValueError(f'Job TOML must reference a {reference} file')
-        job = cls(path, algorithm, values, evaluations)
+        job = cls(path, algorithm, values, evaluations, inputs, source, checkpoint)
         levels = read_toml(job.reference('curriculum')).get('levels', [])
         if any(e.level is not None and e.level > len(levels) for e in evaluations.values()):
             raise ValueError('Evaluation level is outside this curriculum')
@@ -95,7 +138,17 @@ class Job:
         values = dict(self.settings, algorithm=self.algorithm)
         for name in ('walker', 'curriculum'):
             values[name] = read_toml(self.reference(name))
+        if self.source is not None:
+            values['continue_from'] = dict(job=self.source.path.stem, checkpoint=self.source_checkpoint,
+                                           training=self.source.training_spec())
         return values
+
+    def source_train(self) -> Path | None:
+        return None if self.source is None else Path('data/jobs') / self.source.path.stem / 'train'
+
+    def initial_checkpoint(self) -> Path | None:
+        train = self.source_train()
+        return None if train is None else self.checkpoint(train, Evaluation(checkpoint=self.source_checkpoint))
 
     def config(self):
         from maton.config import Config

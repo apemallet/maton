@@ -3,7 +3,9 @@
 Each trainer module `maton.<name>` exposes:
 
 - `Config`: frozen dataclass of the job's `[<name>]` table.
-- `train(env, config, training, output, seed) -> dict`: writes checkpoints under `output`.
+- `train(env, config, training, output, seed, pause=..., checkpoint=None) -> dict`:
+  writes checkpoints under `output`; initializes model weights from `checkpoint` only
+  when no exact resume state exists.
 - `load_agent(checkpoint) -> Agent`: a seeded evaluation controller.
 """
 

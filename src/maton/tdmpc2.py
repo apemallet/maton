@@ -140,8 +140,8 @@ class TDMPC2:
             qs=MLP(keys[4], latent + action, hidden, c.num_bins, ensemble=c.num_q, dropout=c.dropout, zero=True))
         return Model(world, MLP(keys[5], latent, hidden, 2 * action))
 
-    def init(self, key: Array) -> TrainState:
-        model = self.init_model(key)
+    def init(self, key: Array, model: Model | None = None) -> TrainState:
+        model = self.init_model(key) if model is None else model
         target_qs = jax.tree.map(jnp.copy, model.world.qs)  # distinct buffers: training donates state
         return TrainState(model, target_qs, self.world_optimizer.init(eqx.filter(model.world, eqx.is_array)),
                           self.policy_optimizer.init(eqx.filter(model.policy, eqx.is_array)), jnp.ones(()))
@@ -317,8 +317,8 @@ class TDMPC2:
 
 
 def train(env: Any, config: TDMPC2Config, training: TrainingConfig, output: str | Path, seed: int = 0,
-          pause=sessions.never):
-    return offpolicy.train(env, "tdmpc2", TDMPC2, config, training, output, seed, pause)
+          pause=sessions.never, checkpoint: Path | None = None):
+    return offpolicy.train(env, "tdmpc2", TDMPC2, config, training, output, seed, pause, checkpoint)
 
 
 def load_agent(path: str | Path) -> offpolicy.OffPolicyAgent:

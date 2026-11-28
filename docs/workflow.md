@@ -37,6 +37,37 @@ Named evaluations share training. Changing `render` only selects videos; it does
 not invalidate trajectories. An explicitly requested video can use any valid
 episode index, including those outside the default `render` selection.
 
+# Inheritance and fine-tuning
+
+A child job can inherit another job in `configs/jobs/` and train on a harder curriculum:
+
+```toml
+# configs/jobs/biped-ppo-harder-s0.toml
+extends = "biped-ppo-v2-s0"
+curriculum = "../curricula/harder.toml"  # create this curriculum first
+continue_from = { job = "biped-ppo-v2-s0", checkpoint = "final" }
+
+[training]
+steps = 524_288          # additional transitions for this child
+learning_rate = 0.00003
+```
+
+- `extends` names one job, without `.toml`. Tables merge recursively; values and arrays
+  replace inherited values. Evaluations and `continue_from` inherit too. References
+  stay relative to the TOML that declares them. Cycles are rejected.
+- Inheritance alone reuses settings. `continue_from` independently selects source
+  weights; omit `checkpoint` for `final`, or select `step-XXXXXXXX` at a saved count.
+  `final` is the completed source job's latest checkpoint, published under `train/`.
+- PPO, SAC, TD-MPC2, and Dreamer load model weights. Optimizers, replay, counters,
+  environment state, and curriculum progress start fresh; the child starts at level 1.
+  Use the same algorithm and compatible model/observation/action shapes.
+- Snakemake tracks ancestor TOMLs and resolved settings, and builds source `train/`
+  before child `train/`. Inheritance alone does not build the parent. Source identity
+  and checkpoint selection enter the child's training fingerprint.
+- `just job biped-ppo-harder-s0 -n` previews the chain. `just job` builds it.
+  For `just train` sessions, build the source `train/` first. Paused children resume
+  their own exact state; they do not reload source weights.
+
 # Build
 
 ```sh

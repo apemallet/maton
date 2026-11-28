@@ -59,6 +59,8 @@ rule train:
     input:
         # The semantic signature below tracks training settings only.
         config=lambda w: ancient(job_config(w)),
+        inherited=lambda w: [ancient(str(p)) for p in job(w).config_paths[:-1]],
+        source=lambda w: [str(job(w).source_train())] if job(w).source is not None else [],
         walker=lambda w: ancient(str(job(w).reference("walker"))),
         curriculum=lambda w: ancient(str(job(w).reference("curriculum"))),
         lock="uv.lock"

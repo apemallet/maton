@@ -211,7 +211,7 @@ def _save_resume(agent, output: Path, host: dict[str, Any]) -> None:
 
 
 def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Path, seed: int = 0,
-          pause: Callable[[int], bool] = sessions.never):
+          pause: Callable[[int], bool] = sessions.never, checkpoint: Path | None = None):
     """Collect MJX transitions and optimize upstream world model and actor/value. Resumes
     weights, optimizer, counters, and curriculum from `output/resume`; replay starts empty."""
     output = Path(output)
@@ -226,6 +226,23 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
     vector = np.asarray(observation_fn(state), np.float32)
     obs_space, act_space = _spaces(vector.size, env.action_size)
     agent = Agent(obs_space, act_space, agent_config(config, training, output, seed))
+    if checkpoint is not None and not sessions.resuming(output):
+        with checkpoint.open("rb") as file:
+            payload = pickle.load(file)
+        if payload["upstream_commit"] != UPSTREAM_COMMIT:
+            raise ValueError("Checkpoint belongs to another DreamerV3 revision")
+        if (payload["obs_size"], payload["action_size"]) != (vector.size, env.action_size):
+            raise ValueError("Continuation checkpoint observation/action dimensions differ")
+        fresh = agent.save()
+        loaded = payload["agent"]["params"]
+        if fresh["params"].keys() != loaded.keys():
+            raise ValueError("Continuation checkpoint model structure differs")
+        for name, value in fresh["params"].items():
+            if np.shape(value) != np.shape(loaded[name]):
+                raise ValueError(f"Continuation checkpoint parameter shape differs: {name}")
+            if "opt" not in name.split("/"):
+                fresh["params"][name] = loaded[name]
+        agent.load(fresh)
     replay = embodied.Replay(length=config.batch_length, capacity=config.replay_size, seed=seed)
     stream = embodied.streams.Consec(
         embodied.streams.Stateless(lambda: replay.sample(config.batch_size)),
@@ -249,7 +266,7 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
         print(f"Dreamer: resuming at {step}/{training.steps} transitions with empty replay", flush=True)
     started = time.perf_counter()
 
-    def checkpoint() -> None:
+    def save_checkpoint() -> None:
         _save_resume(agent, output, dict(step=step, episodes=episodes, updates=updates,
                                          seconds=prior_seconds + time.perf_counter() - started,
                                          key=np.asarray(sessions.keys(key)).tolist(),
@@ -298,9 +315,9 @@ def train(env: Any, config: DreamerConfig, training: TrainingConfig, output: Pat
                     metrics.flush()
             if training.checkpoint_due(step - 1, step):
                 _save(agent, output / f"dreamer-{step:08d}.pkl", config, training, vector.size, env.action_size, seed, step, curriculum)
-                checkpoint()
+                save_checkpoint()
             if step < training.steps and pause(step):
-                checkpoint()
+                save_checkpoint()
                 break
         if step >= training.steps:
             _save(agent, output / "dreamer.pkl", config, training, vector.size, env.action_size, seed, training.steps, curriculum)

@@ -7,7 +7,7 @@ from pathlib import Path
 from maton.algorithms import algorithm as lookup
 from maton.config import load_run, save_run
 from maton.jobs import Job
-from maton.sessions import Pause
+from maton.sessions import Pause, resuming
 from maton.training import TrainingConfig
 
 
@@ -39,6 +39,9 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "train":
         job = Job.load(args.config)
         config = job.config()
+        checkpoint = job.initial_checkpoint()
+        if checkpoint is not None and not resuming(args.output) and not checkpoint.is_file():
+            parser.error(f"Checkpoint does not exist: {checkpoint}; build the source job with Snakemake first")
         env = config.environment()
         if (args.output / "run.json").exists():
             if load_run(args.output).resolved() != config.resolved():
@@ -49,7 +52,7 @@ def main(argv: list[str] | None = None) -> None:
         pause = Pause(args.hours, args.steps)
         with pause.catching_interrupt():
             result = trainer.train(env, config.trainer_config(), TrainingConfig(**config.training),
-                                   args.output, config.seed, pause=pause)
+                                   args.output, config.seed, pause=pause, checkpoint=checkpoint)
         print(json.dumps(result, indent=2))
     elif args.command == "rollout":
         from maton.replay import record, summarize_episodes

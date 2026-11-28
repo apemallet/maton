@@ -40,3 +40,19 @@ def test_sessions_accumulate_progress_and_reject_changed_settings(project):
     path.write_text(path.read_text().replace('steps = 16', 'steps = 32'))
     with pytest.raises(ValueError, match='settings changed'):
         run_session(Job.load(path))
+
+
+def test_continued_job_uses_published_source_and_keeps_its_own_progress(project):
+    from maton.workflow import build_train
+    source = Job.load('configs/jobs/smoke-ppo.toml')
+    build_train(source, Path('data/jobs/smoke-ppo/train'))
+    path = Path('configs/jobs/harder.toml')
+    path.write_text('extends = "smoke-ppo"\ncontinue_from = {job = "smoke-ppo"}\n'
+                    '[training]\nsteps = 24\nlearning_rate = 0.00003\n')
+    job = Job.load(path)
+    first = run_session(job, steps=8)
+    assert first['steps'] == 8 and not first['complete']
+    assert first['total'] == 24
+    final = run_session(job)
+    assert final['steps'] == 24 and final['complete']
+    assert [s['steps'] for s in final['sessions']] == [[0, 8], [8, 24]]

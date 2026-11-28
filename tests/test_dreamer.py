@@ -197,3 +197,36 @@ def test_pause_and_resume_keeps_budget_counters_and_curriculum(tmp_path, monkeyp
     assert resumed["complete"] and resumed["steps"] == 8
     assert resumed["episodes"] == 4 and resumed["curriculum"]["complete"]
     assert (tmp_path / "dreamer.pkl").exists()
+
+
+def test_continuation_resets_optimizer_counters_and_curriculum(tmp_path, monkeypatch):
+    import pickle
+    Env = fake_runtime(monkeypatch)
+    elements, embodied, Base = dreamer._runtime()
+    loads = []
+
+    class Agent(Base):
+        def save(self):
+            return {'params': {'weight': np.zeros(1), 'opt/momentum': np.zeros(1)},
+                    'counters': {'updates': 0, 'batches': 0, 'actions': 0}}
+
+        def load(self, state):
+            loads.append(state)
+
+    monkeypatch.setattr(dreamer, '_runtime', lambda: (elements, embodied, Agent))
+    source = tmp_path / 'source'
+    dreamer.train(Env(), DreamerConfig(batch_length=2, train_every=2), TrainingConfig(steps=8), source)
+    checkpoint = source / 'dreamer.pkl'
+    with checkpoint.open('rb') as stream:
+        payload = pickle.load(stream)
+    payload['agent']['params']['weight'][:] = 5
+    payload['agent']['params']['opt/momentum'][:] = 9
+    payload['agent']['counters'] = dict(updates=99, batches=99, actions=99)
+    with checkpoint.open('wb') as stream:
+        pickle.dump(payload, stream)
+    result = dreamer.train(Env(), DreamerConfig(batch_length=2, train_every=2), TrainingConfig(steps=1),
+                           tmp_path / 'child', checkpoint=checkpoint)
+    assert result['steps'] == 1 and result['curriculum']['level'] == 0
+    assert loads[0]['params']['weight'][0] == 5
+    assert loads[0]['params']['opt/momentum'][0] == 0
+    assert loads[0]['counters'] == dict(updates=0, batches=0, actions=0)

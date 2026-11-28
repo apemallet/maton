@@ -107,3 +107,65 @@ def test_staging_publishes_only_successful_artifacts(tmp_path):
         with staged_directory(output) as stage:
             stage.mkdir()
     assert (output / 'summary.json').exists()
+
+
+def test_inheritance_merges_tables_and_tracks_declaring_paths(tmp_path):
+    base = copy_job(tmp_path)
+    child = tmp_path / 'harder.toml'
+    child.write_text('extends = "test-job"\nseed = 7\n[training]\nsteps = 32\n'
+                     '[evaluations.level-1]\nrender = []\n')
+    leaf = tmp_path / 'hardest.toml'
+    leaf.write_text('extends = "harder"\n[training]\nlearning_rate = 0.00002\n')
+    job = Job.load(leaf)
+    assert job.settings['seed'] == 7
+    assert job.settings['training']['steps'] == 32
+    assert job.settings['training']['checkpoint_every'] == Job.load(base).settings['training']['checkpoint_every']
+    assert job.config().resolved()['training']['learning_rate'] == 0.00002
+    assert job.evaluations['level-1'].render == ()
+    assert job.config_paths == (base, child, leaf)
+    assert job.reference('walker').resolve() == Job.load(base).reference('walker').resolve()
+    before = fingerprint(job.training_spec())
+    base.write_text(base.read_text().replace('steps = 16', 'steps = 64'))
+    assert fingerprint(Job.load(leaf).training_spec()) == before  # overridden
+    base.write_text(base.read_text().replace('checkpoint_every = 8', 'checkpoint_every = 4'))
+    assert fingerprint(Job.load(leaf).training_spec()) != before
+
+
+@pytest.mark.parametrize('field', ['extends = "test-job"', 'continue_from = {job = "test-job"}',
+                                  'extends = "child"\n', 'continue_from = {job = "child"}'])
+def test_job_dependency_cycles(tmp_path, field):
+    base = copy_job(tmp_path)
+    base.write_text(field + '\n' + base.read_text())
+    (tmp_path / 'child.toml').write_text('extends = "test-job"\n')
+    with pytest.raises(ValueError, match='cycle'):
+        Job.load(base)
+
+
+@pytest.mark.parametrize('field', ['extends = ["test-job"]', 'extends = "../test-job"',
+                                  'continue_from = "test-job"', 'continue_from = {}',
+                                  'continue_from = {job = "test-job", checkpoint = "step-12"}',
+                                  'continue_from = {job = "test-job", typo = 1}'])
+def test_invalid_job_dependencies(tmp_path, field):
+    copy_job(tmp_path)
+    child = tmp_path / 'child.toml'
+    child.write_text(field + '\n')
+    with pytest.raises(ValueError):
+        Job.load(child)
+
+
+def test_continuation_paths_and_identity(tmp_path):
+    base = copy_job(tmp_path)
+    path = tmp_path / 'child.toml'
+    path.write_text('extends = "test-job"\ncontinue_from = {job = "test-job", checkpoint = "step-00000008"}\n')
+    job = Job.load(path)
+    assert job.source_train() == Path('data/jobs/test-job/train')
+    assert job.initial_checkpoint() == Path('data/jobs/test-job/train/checkpoints/step-00000008.eqx')
+    before = fingerprint(job.training_spec())
+    base.write_text(base.read_text().replace('episodes = 1', 'episodes = 2'))
+    assert fingerprint(Job.load(path).training_spec()) == before
+    path.write_text(path.read_text().replace('step-00000008', 'final'))
+    assert Job.load(path).initial_checkpoint() == Path('data/jobs/test-job/train/policy.eqx')
+    assert fingerprint(Job.load(path).training_spec()) != before
+    path.write_text(path.read_text().replace('extends = "test-job"', 'extends = "test-job"\nalgorithm = "sac"'))
+    with pytest.raises(ValueError, match='same algorithm'):
+        Job.load(path)
